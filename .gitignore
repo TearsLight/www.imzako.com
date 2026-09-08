@@ -38,3 +38,12 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
+
+# Java / Spring Boot
+target/
+out/
+*.iml
+.env
+
+mvnw
+mvnw.cmd
