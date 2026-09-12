@@ -5,6 +5,30 @@
   --muted: #72736b;
   --line: #e3e3da;
   --accent: #d6532c;
+  --surface: #fffefa;
+  --surface-muted: #f1eee5;
+  --surface-hover: #eeeee8;
+  --featured: #292f29;
+  --featured-hover: #333b31;
+  --on-featured: #f9f8f5;
+  --featured-muted: #bfc6b7;
+  --featured-line: #4b5145;
+  --featured-icon: #41483d;
+  --accent-soft: #f2946c;
+  --signature: #bbbeb3;
+  --placeholder: #8b8e82;
+  --empty-mark: #adada2;
+  --field-placeholder: #83857b;
+  --focus-ring: #d6532c15;
+  --danger: #ad3724;
+  --danger-border: #eecdc0;
+  --danger-surface: #fff4ef;
+  --success: #4b6644;
+  --success-surface: #e9eee4;
+  --shadow-soft: #292f2926;
+  --shadow-hover: #292f2933;
+  --selection: #f2c6ae;
+  --button-hover: #414b3b;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   color: var(--ink);
@@ -13,6 +37,39 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #080808;
+  --ink: #f4f4f2;
+  --muted: #a3a39d;
+  --line: #30302d;
+  --accent: #f1794c;
+  --surface: #111110;
+  --surface-muted: #1b1b19;
+  --surface-hover: #22221f;
+  --featured: #f2f2ef;
+  --featured-hover: #deded9;
+  --on-featured: #11110f;
+  --featured-muted: #55554f;
+  --featured-line: #cecec7;
+  --featured-icon: #d8d8d1;
+  --accent-soft: #b84927;
+  --signature: #585853;
+  --placeholder: #9a9a93;
+  --empty-mark: #686861;
+  --field-placeholder: #85857f;
+  --focus-ring: #f1794c22;
+  --danger: #ff9a8b;
+  --danger-border: #66372f;
+  --danger-surface: #271714;
+  --success: #aad19e;
+  --success-surface: #1d2a1b;
+  --shadow-soft: #00000080;
+  --shadow-hover: #00000099;
+  --selection: #71432f;
+  --button-hover: #d9d9d4;
 }
 
 *,
@@ -25,6 +82,11 @@ body {
   min-width: 320px;
   font-size: 16px;
   line-height: 1.7;
+  color: var(--ink);
+  background: var(--paper);
+  transition:
+    color 400ms var(--ease),
+    background-color 400ms var(--ease);
 }
 h1,
 h2,
@@ -42,7 +104,7 @@ input {
 }
 ::selection {
   color: var(--ink);
-  background: #f2c6ae;
+  background: var(--selection);
 }
 :focus-visible {
   outline: 2px solid var(--accent);

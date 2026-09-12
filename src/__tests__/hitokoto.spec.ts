@@ -75,17 +75,14 @@ describe('Hitokoto footer', () => {
         throw new Error('Invalid JSON')
       },
     },
-  ])(
-    'keeps the fallback without a misleading source link on invalid responses: %#',
-    async (response) => {
-      fetchMock.mockResolvedValue(response)
-      const wrapper = mount(HitokotoFooter)
-      await flushPromises()
-      expect(wrapper.text()).toBe('在自己的节奏里，持续创造')
-      expect(wrapper.find('a').exists()).toBe(false)
-      expect(localStorage.getItem(cacheKey)).toBeNull()
-    },
-  )
+  ])('renders no misleading source link on invalid responses: %#', async (response) => {
+    fetchMock.mockResolvedValue(response)
+    const wrapper = mount(HitokotoFooter)
+    await flushPromises()
+    expect(wrapper.text()).toBe('')
+    expect(wrapper.find('a').exists()).toBe(false)
+    expect(localStorage.getItem(cacheKey)).toBeNull()
+  })
 
   it('still displays the API response when browser storage is disabled', async () => {
     vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
@@ -111,7 +108,7 @@ describe('Hitokoto footer', () => {
     const wrapper = mount(HitokotoFooter)
     await vi.advanceTimersByTimeAsync(5000)
     expect(fetchMock.mock.calls[0]![1].signal.aborted).toBe(true)
-    expect(wrapper.text()).toBe('在自己的节奏里，持续创造')
+    expect(wrapper.text()).toBe('')
   })
 
   it('aborts pending requests when the component unmounts', () => {

@@ -4,7 +4,7 @@ import App from '../App.vue'
 import router from '../router'
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Offline in navigation tests')))
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404 }))
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -19,11 +19,13 @@ describe('page navigation', () => {
     await router.isReady()
     const wrapper = mount(App, { global: { plugins: [router] } })
 
-    expect(wrapper.get('h1').text()).toContain('从这里出发')
+    expect(wrapper.get('h1').text()).toContain('Connect To')
     expect(wrapper.get('a.service-card-featured').attributes('href')).toBe('https://git.imzako.com')
     expect(wrapper.find('.service-card[href="http://localhost:8080/blog"]').exists()).toBe(true)
     expect(wrapper.get('.service-card-placeholder').element.tagName).toBe('ARTICLE')
     expect(wrapper.get('.service-card-placeholder').attributes('href')).toBeUndefined()
+    expect(wrapper.find('#home-blog').exists()).toBe(true)
+    expect(wrapper.get('.blog-scroll-cue').attributes('aria-controls')).toBe('home-blog')
     await router.push('/blog')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/blog')
@@ -33,7 +35,7 @@ describe('page navigation', () => {
       'http://localhost:8080/blog',
     )
 
-    await wrapper.get('.empty-state a').trigger('click')
+    await wrapper.get('.feed-footer a').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.path).toBe('/')
     expect(document.title).toBe('imzako — 站点导航')
@@ -43,6 +45,11 @@ describe('page navigation', () => {
     await flushPromises()
     expect(document.title).toBe('用户登录 — imzako')
     expect(wrapper.find('form').exists()).toBe(true)
+    await wrapper.get('.header-register').trigger('click')
+    await vi.waitFor(() => expect(router.currentRoute.value.path).toBe('/register'))
+    await flushPromises()
+    expect(document.title).toBe('用户注册 — imzako')
+    expect(wrapper.text()).toContain('创建账户')
     wrapper.unmount()
   })
 

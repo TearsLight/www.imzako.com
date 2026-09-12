@@ -2,7 +2,8 @@
 import { RouterLink, RouterView } from 'vue-router'
 import { ref } from 'vue'
 import HitokotoFooter from './components/HitokotoFooter.vue'
-import { siteLinks } from './config/sites'
+import ThemeToggle from './components/ThemeToggle.vue'
+import { publicDomain, siteLinks, siteName } from './config/sites'
 
 const main = ref<HTMLElement | null>(null)
 const year = new Date().getFullYear()
@@ -16,8 +17,8 @@ function focusPage() {
   <div class="site-shell">
     <header class="site-header">
       <div class="header-brand">
-        <RouterLink class="wordmark" to="/" aria-label="imzako 首页">
-          imzako<span class="brand-dot">.</span>
+        <RouterLink class="wordmark" to="/" :aria-label="`${siteName} 首页`">
+          {{ siteName }}<span class="brand-dot">.</span>
         </RouterLink>
         <span class="header-subtitle">个人服务门户</span>
       </div>
@@ -34,13 +35,17 @@ function focusPage() {
         <a
           :href="siteLinks.blog"
           class="nav-link"
-          :aria-current="$route.name === 'blog' ? 'page' : undefined"
+          :aria-current="$route.name === 'blog' || $route.name === 'blog-post' ? 'page' : undefined"
           >博客</a
         >
       </nav>
-      <RouterLink to="/login" class="header-login"
-        >用户登录 <span aria-hidden="true">↗</span></RouterLink
-      >
+      <div class="header-actions">
+        <ThemeToggle />
+        <RouterLink to="/register" class="header-register">注册</RouterLink>
+        <RouterLink to="/login" class="header-login"
+          >用户登录 <span aria-hidden="true">↗</span></RouterLink
+        >
+      </div>
     </header>
     <main id="main-content" ref="main" tabindex="-1">
       <RouterView v-slot="{ Component }">
@@ -50,9 +55,9 @@ function focusPage() {
       </RouterView>
     </main>
     <footer class="site-footer">
-      <span>© {{ year }} imzako</span>
+      <span>© {{ year }} {{ siteName }}</span>
       <HitokotoFooter />
-      <span class="footer-domain">www.imzako.com</span>
+      <span class="footer-domain">{{ publicDomain }}</span>
     </footer>
   </div>
 </template>

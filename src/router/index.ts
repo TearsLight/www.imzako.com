@@ -17,10 +17,22 @@ const router = createRouter({
       meta: { title: '博客 — imzako' },
     },
     {
+      path: '/blog/posts/:slug(.*)',
+      name: 'blog-post',
+      component: () => import('../views/BlogPostPage.vue'),
+      meta: { title: '文章 — imzako' },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginPage.vue'),
       meta: { title: '用户登录 — imzako' },
+    },
+    {
+      path: '/register',
+      name: 'register',
+      component: () => import('../views/RegisterPage.vue'),
+      meta: { title: '用户注册 — imzako' },
     },
     { path: '/about', redirect: '/' },
     {

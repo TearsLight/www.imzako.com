@@ -15,7 +15,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "app.mongodb.initialize=false")
 class WebRoutesTest {
     @Value("${local.server.port}")
     private int port;
@@ -23,7 +23,7 @@ class WebRoutesTest {
     private final HttpClient client = HttpClient.newHttpClient();
 
     @ParameterizedTest
-    @ValueSource(strings = {"/", "/blog", "/blog/", "/login", "/login/", "/about", "/about/"})
+    @ValueSource(strings = {"/", "/blog", "/blog/", "/blog/posts/hello-markdown", "/blog/posts/notes/hello", "/login", "/login/", "/register", "/register/", "/about", "/about/"})
     void pageRoutesServeTheBuiltVueApp(String path) throws Exception {
         var response = get(path);
         assertThat(response.statusCode()).isEqualTo(200);

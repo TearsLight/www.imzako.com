@@ -6,6 +6,8 @@ type CachedSentence = { sentence: Sentence; expiresAt: number }
 
 const cacheKey = 'imzako:hitokoto:v1'
 const cacheDuration = 60 * 60 * 1000
+const apiUrl =
+  import.meta.env.VITE_HITOKOTO_API_URL || 'https://v1.hitokoto.cn/?encode=json&max_length=60'
 const sentence = ref<Sentence | null>(null)
 const sourceUrl = computed(() =>
   sentence.value
@@ -41,7 +43,7 @@ onMounted(async () => {
 
   timeout = setTimeout(() => controller.abort(), 5000)
   try {
-    const response = await fetch('https://v1.hitokoto.cn/?encode=json&max_length=60', {
+    const response = await fetch(apiUrl, {
       signal: controller.signal,
     })
     if (!response.ok) return
@@ -80,6 +82,5 @@ onBeforeUnmount(() => {
     >
       {{ sentence.hitokoto }}<span aria-hidden="true"> ↗</span>
     </a>
-    <span v-else>在自己的节奏里，持续创造</span>
   </span>
 </template>

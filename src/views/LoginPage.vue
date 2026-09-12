@@ -70,18 +70,19 @@ onBeforeUnmount(() => {
       >
       <div>
         <p class="eyebrow">YOUR SPACE, CONNECTED.</p>
-        <h2>欢迎回来<span class="brand-dot">。</span><br /><span>继续你的探索。</span></h2>
-        <p class="login-aside-description">
-          从一行代码，到一段文字，<br />每一次创造，都值得一个自己的空间。
-        </p>
+        <h2>欢迎回来<span class="brand-dot">。</span><br /><span></span></h2>
       </div>
       <span class="login-aside-foot">IMZAKO / ACCOUNT</span>
     </div>
     <div class="login-panel reveal delay-1">
       <template v-if="!user">
+        <nav class="account-switch" aria-label="账户操作">
+          <RouterLink to="/login" aria-current="page">登录</RouterLink>
+          <RouterLink to="/register">注册</RouterLink>
+        </nav>
         <p class="eyebrow">WELCOME BACK</p>
         <h1 id="login-heading">用户登录</h1>
-        <p class="login-intro">使用你的账号，回到自己的空间。</p>
+        <p class="login-intro">登录后继续你的账户服务</p>
         <form novalidate :aria-busy="pending" @submit.prevent="submit">
           <div class="form-field">
             <label for="username">账号</label>
@@ -139,7 +140,9 @@ onBeforeUnmount(() => {
           </button>
         </form>
         <p class="login-return-note">
-          只是来逛逛？<RouterLink to="/">浏览公开站点 <span aria-hidden="true">→</span></RouterLink>
+          还没有账户？<RouterLink to="/register"
+            >立即注册 <span aria-hidden="true">→</span></RouterLink
+          >
         </p>
       </template>
       <div v-else class="login-success">
@@ -147,6 +150,7 @@ onBeforeUnmount(() => {
         <p class="eyebrow">WELCOME BACK</p>
         <h1 id="login-heading" ref="successHeading" tabindex="-1">登录成功</h1>
         <p>欢迎回来，{{ user.displayName || user.username }}。</p>
+        <p v-if="user.roles?.includes('ADMIN')" class="account-role">管理员账户</p>
         <RouterLink class="button button-dark" to="/"
           >返回站点导航 <span aria-hidden="true">↗</span></RouterLink
         >

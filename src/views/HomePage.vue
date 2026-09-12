@@ -1,5 +1,13 @@
 ﻿<script setup lang="ts">
-import { sites } from '../config/sites'
+import { siteName, sites } from '../config/sites'
+import BlogFeed from '../components/BlogFeed.vue'
+
+function scrollToBlog() {
+  document.getElementById('home-blog')?.scrollIntoView({
+    behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+    block: 'start',
+  })
+}
 </script>
 
 <template>
@@ -7,23 +15,21 @@ import { sites } from '../config/sites'
     <section class="portal-intro reveal" aria-labelledby="home-heading">
       <div>
         <p class="eyebrow">
-          <span class="small-cross" aria-hidden="true">✳</span> IMZAKO / PERSONAL PORTAL
+          <span class="small-cross" aria-hidden="true">✳</span> {{ siteName.toUpperCase() }} /
+          PERSONAL PORTAL
         </p>
-        <h1 id="home-heading">连接想法。</h1>
-        <p class="portal-description">代码、文字与更多可能。</p>
+        <h1 id="home-heading">Connect To</h1>
+        <p class="portal-description">The Truth</p>
       </div>
       <div class="portal-signature" aria-hidden="true">
-        <span>imzako<span class="brand-dot">.</span></span
-        ><small>A PLACE FOR EVERYTHING I BUILD</small>
+        <span>Hello World!<span class="brand-dot">.</span></span
+        ><small>A PLACE FOR EVERYTHING</small>
       </div>
     </section>
 
     <section class="services-section" aria-labelledby="services-heading">
       <div class="section-heading reveal delay-1">
         <h2 id="services-heading">站点导航 <span>DIRECTORY</span></h2>
-        <span class="directory-caption"
-          >选择一个站点，继续探索 <span aria-hidden="true">↙</span></span
-        >
       </div>
       <div class="service-grid">
         <component
@@ -74,7 +80,7 @@ import { sites } from '../config/sites'
             </span>
             <span class="service-label">{{ site.label }}</span>
             <span v-if="site.href" class="service-arrow" aria-hidden="true">↗</span>
-            <span v-else class="reserved-badge">敬请期待</span>
+            <span v-else class="reserved-badge">Comming soon</span>
           </div>
           <div class="service-copy">
             <h3>{{ site.name }}</h3>
@@ -88,8 +94,38 @@ import { sites } from '../config/sites'
       </div>
     </section>
     <div class="portal-note reveal delay-3">
-      <span class="status-dot" /><span>持续构建。</span
-      ><span class="portal-note-end">ONE SPACE. MANY POSSIBILITIES.</span>
+      <button type="button" class="blog-scroll-cue" aria-controls="home-blog" @click="scrollToBlog">
+        <span>向下探索博客</span><span aria-hidden="true">↓</span>
+      </button>
+      <span class="portal-note-end">SCROLL TO THE JOURNAL</span>
     </div>
+    <BlogFeed embedded />
   </div>
 </template>
+
+<style scoped>
+.blog-scroll-cue {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+.blog-scroll-cue > span:last-child {
+  color: var(--accent);
+  transition: transform 300ms var(--ease);
+}
+.blog-scroll-cue:hover > span:last-child {
+  transform: translateY(4px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .blog-scroll-cue > span:last-child {
+    transition: none;
+  }
+}
+</style>
