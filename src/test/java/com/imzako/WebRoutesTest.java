@@ -23,7 +23,7 @@ class WebRoutesTest {
     private final HttpClient client = HttpClient.newHttpClient();
 
     @ParameterizedTest
-    @ValueSource(strings = {"/", "/blog", "/blog/", "/blog/posts/hello-markdown", "/blog/posts/notes/hello", "/login", "/login/", "/register", "/register/", "/about", "/about/"})
+    @ValueSource(strings = {"/", "/blog", "/blog/", "/blog/posts/hello-markdown", "/blog/posts/notes/hello", "/login", "/login/", "/register", "/register/", "/account", "/account/", "/about", "/about/"})
     void pageRoutesServeTheBuiltVueApp(String path) throws Exception {
         var response = get(path);
         assertThat(response.statusCode()).isEqualTo(200);

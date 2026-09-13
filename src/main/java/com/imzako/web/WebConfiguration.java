@@ -24,8 +24,9 @@ public class WebConfiguration implements WebMvcConfigurer {
         if (origins.length == 0) return;
         registry.addMapping("/api/**")
                 .allowedOrigins(origins)
-                .allowedMethods("GET", "POST", "OPTIONS")
+                .allowedMethods("GET", "POST", "PUT", "OPTIONS")
                 .allowedHeaders("Content-Type", "Accept")
+                .exposedHeaders("X-Captcha-Id", "X-Captcha-Threshold")
                 .allowCredentials(true)
                 .maxAge(3600);
     }

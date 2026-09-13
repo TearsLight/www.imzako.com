@@ -1,4 +1,4 @@
-﻿import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '../views/HomePage.vue'
 
 const router = createRouter({
@@ -8,38 +8,44 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomePage,
-      meta: { title: 'imzako — 站点导航' },
+      meta: { title: '站点导航' },
     },
     {
       path: '/blog',
       name: 'blog',
       component: () => import('../views/BlogPage.vue'),
-      meta: { title: '博客 — imzako' },
+      meta: { title: '博客' },
     },
     {
       path: '/blog/posts/:slug(.*)',
       name: 'blog-post',
       component: () => import('../views/BlogPostPage.vue'),
-      meta: { title: '文章 — imzako' },
+      meta: { title: '文章' },
     },
     {
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginPage.vue'),
-      meta: { title: '用户登录 — imzako' },
+      meta: { title: '用户登录' },
     },
     {
       path: '/register',
       name: 'register',
       component: () => import('../views/RegisterPage.vue'),
-      meta: { title: '用户注册 — imzako' },
+      meta: { title: '用户注册' },
+    },
+    {
+      path: '/account',
+      name: 'account',
+      component: () => import('../views/AccountPage.vue'),
+      meta: { title: '用户管理' },
     },
     { path: '/about', redirect: '/' },
     {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: () => import('../views/NotFoundPage.vue'),
-      meta: { title: '页面不存在 — imzako' },
+      meta: { title: '页面不存在' },
     },
   ],
   scrollBehavior(_to, _from, savedPosition) {

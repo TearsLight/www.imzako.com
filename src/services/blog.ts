@@ -6,7 +6,10 @@ export interface BlogPost {
   excerpt: string
   url: string
   publishedAt: string
+  /** Front-matter tags joined with the first content directory. */
   category: string
+  /** The same categories as a list, when the server provides them. */
+  categories?: string[]
 }
 
 export interface BlogArticle {
@@ -79,6 +82,9 @@ function normalizePost(value: unknown): BlogPost | null {
         ? post.publishedAt
         : '',
     category: typeof post.category === 'string' ? post.category : '',
+    categories: Array.isArray(post.categories)
+      ? post.categories.filter((item): item is string => typeof item === 'string' && !!item.trim())
+      : undefined,
   }
 }
 

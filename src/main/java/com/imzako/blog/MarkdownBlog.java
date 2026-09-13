@@ -12,16 +12,27 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
 
 @Service
 public class MarkdownBlog implements AutoCloseable {
-    public record Post(String id, String title, String excerpt, String url, String publishedAt, String category) {}
+    /**
+     * {@code categories} merges the front-matter tags with the first directory below
+     * the blog root; {@code category} keeps the joined form for display.
+     */
+    public record Post(String id, String title, String excerpt, String url, String publishedAt,
+                       String category, List<String> categories) {}
     public record Article(Post post, String markdown, String updatedAt) {}
     private static final Logger log = LoggerFactory.getLogger(MarkdownBlog.class);
     private static final Pattern TITLE = Pattern.compile("(?m)^#\\s+(.+?)\\s*#*\\s*$");
+    /** YAML-style front matter delimited by --- lines at the very start of the file. */
+    private static final Pattern FRONT_MATTER = Pattern.compile("\\A\\uFEFF?---\\s*\\r?\\n(.*?)\\r?\\n---[ \\t]*(?:\\r?\\n|\\z)", Pattern.DOTALL);
+    private static final String DEFAULT_CATEGORY = "随笔";
     private final Path root;
     private final Map<WatchKey, Path> watched = new HashMap<>();
     private final Set<Runnable> listeners = new CopyOnWriteArraySet<>();
@@ -100,18 +111,21 @@ public class MarkdownBlog implements AutoCloseable {
                         try {
                             // Bound the amount of Markdown read from each file.
                             if (Files.size(path) > 1_048_576) { log.warn("Skipping oversized Markdown: {}", relative); continue; }
-                            String markdown = Files.readString(path, StandardCharsets.UTF_8).replaceFirst("^\\uFEFF", "");
-                            String modified = Files.getLastModifiedTime(path).toInstant().toString();
-                            var titleMatch = TITLE.matcher(markdown);
-                            String title = titleMatch.find() ? titleMatch.group(1) : path.getFileName().toString().replaceFirst("(?i)\\.md$", "");
-                            String excerpt = markdown.replaceAll("(?s)```.*?```|~~~.*?~~~", " ")
-                                    .replaceAll("(?m)^#{1,6}\\s+.*$", " ")
-                                    .replaceAll("!?\\[([^]]*)]\\([^)]+\\)", "$1")
-                                    .replaceAll("[`*_>#|]", "").replaceAll("\\s+", " ").trim();
-                            if (excerpt.length() > 180) excerpt = excerpt.substring(0, 180) + "…";
+                            String raw = Files.readString(path, StandardCharsets.UTF_8).replaceFirst("^\\uFEFF", "");
+                            Instant modifiedAt = Files.getLastModifiedTime(path).toInstant();
+                            var frontMatter = parseFrontMatter(raw);
+                            if (frontMatter.draft()) continue;
+                            // The metadata block is not part of the article body.
+                            String markdown = stripFrontMatter(raw);
+                            String title = frontMatter.title() != null ? frontMatter.title() : headingOrFileName(markdown, path);
+                            List<String> categories = categories(frontMatter.tags(), relative);
+                            String publishedAt = frontMatter.date() != null ? frontMatter.date() : modifiedAt.toString();
+                            String excerpt = excerpt(markdown);
                             String url = "/blog/posts/" + UriUtils.encodePath(slug, StandardCharsets.UTF_8);
-                            String category = root.relativize(path).getNameCount() > 1 ? root.relativize(path).getName(0).toString() : "随笔";
-                            next.put(slug, new Article(new Post(slug, title, excerpt, url, modified, category), markdown, modified));
+                            next.put(slug, new Article(
+                                    new Post(slug, title, excerpt, url, publishedAt, String.join(" · ", categories), categories),
+                                    markdown,
+                                    modifiedAt.toString()));
                         } catch (IOException e) {
                             // Editors may briefly lock a file during an atomic save; retry next scan.
                             if (articles.containsKey(slug)) next.put(slug, articles.get(slug));
@@ -137,5 +151,105 @@ public class MarkdownBlog implements AutoCloseable {
         worker.shutdownNow();
         if (watcher != null) watcher.close();
         listeners.clear();
+    }
+
+    /** Parsed front-matter values; every field is optional. */
+    record FrontMatter(String title, String date, List<String> tags, boolean draft) {}
+
+    static FrontMatter parseFrontMatter(String markdown) {
+        var match = FRONT_MATTER.matcher(markdown);
+        if (!match.find()) return new FrontMatter(null, null, List.of(), false);
+
+        String title = null;
+        String date = null;
+        List<String> tags = List.of();
+        boolean draft = false;
+        for (String line : match.group(1).split("\\r?\\n")) {
+            int colon = line.indexOf(':');
+            if (colon <= 0) continue;
+            String key = line.substring(0, colon).trim().toLowerCase(Locale.ROOT);
+            String value = unquote(line.substring(colon + 1).trim());
+            switch (key) {
+                case "title" -> { if (!value.isEmpty()) title = value; }
+                case "date" -> { date = parseDate(value); }
+                case "tags", "tag" -> tags = splitTags(value);
+                case "draft" -> draft = "true".equalsIgnoreCase(value)
+                        || "yes".equalsIgnoreCase(value)
+                        || "1".equals(value);
+                default -> { }
+            }
+        }
+        return new FrontMatter(title, date, tags, draft);
+    }
+
+    /** Removes the front-matter block so it never reaches the rendered article. */
+    static String stripFrontMatter(String markdown) {
+        return FRONT_MATTER.matcher(markdown).replaceFirst("").stripLeading();
+    }
+
+    private static String unquote(String value) {
+        if (value.length() >= 2
+                && ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'")))) {
+            return value.substring(1, value.length() - 1).trim();
+        }
+        return value;
+    }
+
+    /**
+     * Accepts tags separated by spaces, commas or the YAML list dash. A leading
+     * {@code #} is tolerated so users can paste hashtag style input.
+     */
+    static List<String> splitTags(String value) {
+        if (value == null || value.isBlank() || "-".equals(value)) return List.of();
+        var tags = new LinkedHashSet<String>();
+        for (String token : value.split("[\\s,，]+")) {
+            String tag = token.strip().replaceFirst("^#+", "").trim();
+            if (!tag.isEmpty()) tags.add(tag);
+        }
+        return List.copyOf(tags);
+    }
+
+    /** Returns an ISO instant for the front-matter date, or null when unparseable. */
+    static String parseDate(String value) {
+        if (value == null || value.isBlank()) return null;
+        String candidate = value.trim().replace(' ', 'T');
+        try {
+            return Instant.parse(candidate).toString();
+        } catch (RuntimeException notAnInstant) {
+            // A plain date or local timestamp is read as UTC so it still sorts by day.
+            try {
+                return LocalDateTime.parse(candidate).toInstant(ZoneOffset.UTC).toString();
+            } catch (RuntimeException notALocalDateTime) {
+                try {
+                    return LocalDate.parse(candidate).atStartOfDay(ZoneOffset.UTC).toInstant().toString();
+                } catch (RuntimeException notADate) {
+                    return null;
+                }
+            }
+        }
+    }
+
+    /** Tags become categories; the first directory below the root also counts. */
+    static List<String> categories(List<String> tags, String relativePath) {
+        var categories = new LinkedHashSet<String>(tags);
+        int separator = relativePath.indexOf('/');
+        if (separator > 0) categories.add(relativePath.substring(0, separator));
+        if (categories.isEmpty()) categories.add(DEFAULT_CATEGORY);
+        return List.copyOf(categories);
+    }
+
+    private static String headingOrFileName(String markdown, Path path) {
+        var titleMatch = TITLE.matcher(markdown);
+        return titleMatch.find()
+                ? titleMatch.group(1)
+                : path.getFileName().toString().replaceFirst("(?i)\\.md$", "");
+    }
+
+    private static String excerpt(String markdown) {
+        String excerpt = markdown.replaceAll("(?s)```.*?```|~~~.*?~~~", " ")
+                .replaceAll("(?m)^#{1,6}\\s+.*$", " ")
+                .replaceAll("!?\\[([^]]*)]\\([^)]+\\)", "$1")
+                .replaceAll("[`*_>#|]", "").replaceAll("\\s+", " ").trim();
+        return excerpt.length() > 180 ? excerpt.substring(0, 180) + "…" : excerpt;
     }
 }

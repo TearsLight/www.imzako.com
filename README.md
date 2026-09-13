@@ -2,7 +2,7 @@
 
 `www.imzako.com` 是一个个人服务门户与文件驱动博客。前端使用 Vue 3、TypeScript 和 Vite，后端使用 Java 21、Spring Boot 4.1.1 与 MongoDB。
 
-主页 `/` 展示服务导航，继续向下滚动即可进入博客区域并浏览最近更新的 10 篇文章。顶部导航、登录与注册入口、白天/夜间模式和一言页脚在所有页面共用。
+主页 `/` 展示服务导航，继续向下滚动即可进入博客区域并浏览最近更新的 10 篇文章。顶部导航、登录与注册入口、白天/夜间模式和一言页脚在所有页面共用。登录后顶部显示「欢迎{用户名}」菜单，可进入 `/account` 管理头像、用户名、邮箱和密码。
 
 ## 当前功能
 
@@ -12,7 +12,8 @@
 - Git 服务默认指向 `https://git.imzako.com`。
 - 博客默认指向 `http://localhost:8080/blog`，生产地址预留为 `https://www.imzako.com/blog`。
 - 可通过 `VITE_EXTRA_SITES_JSON` 增加其他站点，无需修改页面模板。
-- 顶部导航在所有路由共用，包含首页、Git、博客、用户登录和主题开关。
+- 顶部导航在所有路由共用，包含首页、Git、博客、登录状态和主题开关。
+- 未登录时显示“用户登录”入口；登录后替换为带头像的“欢迎{用户名}”按钮，点击展开菜单，可进入 `/account` 或退出登录。
 - 白天/夜间模式采用黑白主视觉，首次访问跟随系统设置，手动选择保存在 `localStorage`。
 - 页面使用平滑滚动、进出场过渡和分层动画；系统启用“减少动态效果”时自动关闭非必要动画。
 - 布局适配桌面、平板和手机，并提供跳转到主要内容、键盘焦点和语义化状态提示。
@@ -41,14 +42,54 @@ https://hitokoto.cn?uuid=[uuid]
 - 服务端每 15 秒发送心跳，并每 10 秒补偿扫描一次，避免遗漏文件系统事件。
 - `/` 下方与 `/blog` 共用文章列表，最多显示最近更新的 10 篇。
 - `/blog/posts/{slug}` 渲染文章详情，支持子目录，例如 `blog/notes/first.md` 对应 `/blog/posts/notes/first`。
-- 第一个一级标题作为文章标题；没有一级标题时使用文件名。
-- 摘要从正文自动提取，第一层子目录作为分类，文件修改时间作为排序与更新时间。
 - 支持标题、列表、引用、表格、链接、代码块和相对路径图片。
 - 本地图片支持 PNG、JPEG、GIF、WebP 和 AVIF，并限制在博客目录内读取。
 - 单篇 Markdown 最大 1 MiB，超过限制的文件不会进入文章索引。
 - 原始 HTML 默认关闭，渲染结果经 DOMPurify 清理后再插入页面。
 
 保存 Markdown 后，无需重新构建或刷新浏览器，已打开的列表和正文会自动同步。详细说明见 [Markdown 博客文档](docs/frontend-blog.md)。
+
+#### Front matter
+
+文章开头的 front matter 决定标题、日期与分类，整块内容不会出现在正文或摘要里：
+
+```markdown
+---
+title: 名称
+date: 2026-09-12T21:30:00+08:00
+tags: 技术 笔记
+draft: false
+---
+```
+
+| 字段    | 说明                                                                                                         |
+| ------- | ------------------------------------------------------------------------------------------------------------ |
+| `title` | 文章标题；缺省时回退到第一个一级标题，再回退到文件名                                                         |
+| `date`  | 排序与展示用时间；接受带偏移的 ISO 时间、`2026-09-12 21:30:00` 或 `2026-09-12`，无法解析时回退到文件修改时间 |
+| `tags`  | 空格分隔的标签，也可用逗号或 `#` 前缀；与所在子目录一起构成分类                                              |
+| `draft` | 设为 `true`、`yes` 或 `1` 时不进入公开列表和正文接口，适合占位稿和未完成文章                                 |
+
+**分类规则**：`categories` = front matter 的 tags + 文章所在的第一层子目录，按出现顺序去重；两者都没有时归为「随笔」。例如 `blog/notes/a.md` 且 `tags: 技术 笔记`，分类为 `技术`、`笔记`、`notes`。API 同时返回数组 `categories` 与拼接后的 `category` 字符串供展示。
+
+front matter 是可选的，没有它时行为与之前一致。
+
+#### 新建文章的命令
+
+```powershell
+npm run blog -- -n "文章名称"
+npm run blog -- -n "文章名称" -t "技术 笔记"
+npm run blog -- -n "周记" -d notes -t "随笔"
+```
+
+| 选项          | 说明                                          |
+| ------------- | --------------------------------------------- |
+| `-n, --name`  | 文章标题，同时用于生成文件名（必填）          |
+| `-t, --tags`  | 标签，空格分隔，写入 front matter 并计入分类  |
+| `-d, --dir`   | 放入 `blog/` 下的子目录，该子目录同样计入分类 |
+| `-f, --force` | 同名文件已存在时覆盖                          |
+| `-h, --help`  | 显示帮助                                      |
+
+命令会写入填好 `title`、`date`（本地时间带时区偏移）和 `tags` 的 front matter，并在末尾打印现有分类/标签作为参考。文件名由标题生成：含拉丁字母时转为小写连字符形式（`Hello World` → `hello-world.md`），纯中文标题则保留原名；同名时自动追加 `-2`、`-3` 等后缀，不会静默覆盖。
 
 #### 代码语法高亮
 
@@ -63,27 +104,74 @@ console.log(message)
 
 当前按需加载常用语言集合，包括 JavaScript、TypeScript、Java、Python、Go、Rust、C/C++、C#、Kotlin、Swift、PHP、Ruby、SQL、Shell、CSS、JSON、YAML 和 Markdown。没有指定语言或语言无法识别时会自动检测。高亮配色同时适配白天和夜间主题。
 
+### 注册邮箱验证（当前关闭）
+
+注册邮箱验证的完整链路已经实现，但**默认关闭**，因此注册后会直接登录，不会发送验证码。通过 `.env` 打开：
+
+```dotenv
+app.email-verification.enabled=true
+```
+
+打开后行为如下：
+
+- 注册先创建账号并标记为未验证，然后向该邮箱发送 6 位验证码，此时**不建立登录会话**；如果 SMTP 发送失败，则回滚新账号和验证记录，不会留下无法重新注册的孤立账号。
+- 未验证邮箱的账号**无法登录**：提交正确的密码会收到 `428 EMAIL_NOT_VERIFIED` 与打码后的邮箱地址，前端据此切换到验证码输入界面。
+- 输入正确验证码后邮箱置为已验证并建立会话；验证码一次性使用，5 次输入失败即作废。
+- `POST /api/auth/register/resend` 可重发，默认 60 秒冷却、每小时最多 5 封；验证码到期时由 MongoDB TTL 索引自动删除。
+- 注册、重发邮件和生成图形验证码还有按来源地址的固定时间窗限流，超限返回 `429 RATE_LIMITED`。
+- 存量账号（无 `emailVerified` 字段）在启动时会被标记为已验证，避免升级后失联。
+- 非 `production` 环境下，验证码会同时写入服务端日志，便于本地联调。
+
+邮件通过 `.env` 中已配置的 SMTP 发送。`.env` 里的 `SMTP_*`、`SENDER`、`SENDER_NAME` 会被映射到 Spring 的 `spring.mail.*` 与 `app.mail.*`。
+
+### 登录图形验证码（当前关闭）
+
+连续登录失败后强制图形验证码的功能也已实现，同样**默认关闭**：
+
+```dotenv
+app.captcha.enabled=true
+```
+
+打开后：同一邮箱或同一来源地址在窗口期内累计失败达到阈值（默认 3 次，可用 `LOGIN_CAPTCHA_THRESHOLD`、`LOGIN_FAILURE_WINDOW_SECONDS` 调整）时，后续登录先返回 `428 CAPTCHA_REQUIRED`；前端调用 `GET /api/auth/captcha` 取回验证码图片，并把响应头 `X-Captcha-Id` 与用户输入一并提交。验证码由服务端用 JDK 图像 API 生成，4 位字符，只存于服务端内存，5 分钟有效且一次性使用，答错返回 `400 INVALID_CAPTCHA`。登录成功会清零计数。失败计数和验证码记录都有最大数量限制，攻击者无法通过持续更换标识无限占用内存。
+
 ### 用户、登录与管理员
 
-- `/login` 提供登录前端，支持用户名或邮箱。
-- `/register` 开放普通用户注册，包含邮箱、用户名、密码确认、性别和生日字段的前端校验。
-- `POST /api/auth/register` 创建普通用户并建立会话。
-- 注册成功后直接进入登录会话，并显示新账户 UID。
+- `/login` 提供登录前端，支持**邮箱或 UID** 登录。
+- `/register` 开放普通用户注册，包含邮箱、用户名、密码确认字段的前端校验。
+- `POST /api/auth/register` 创建普通用户；邮箱验证关闭时直接建立会话，开启时返回需要验证。
 - 首位注册用户的 UID 为 `1000001`，后续注册通过 MongoDB 原子序列递增。
-- 邮箱、用户名和 UID 均有唯一索引；邮箱和用户名使用规范化检索键避免大小写重复。
+- **UID 与邮箱是唯一标识**；用户名只是展示用的标签，**允许重复，不能用于登录**。
+- 邮箱使用规范化检索键避免大小写重复；`usernameKey` 保留但不再有唯一索引。
 - 密码使用 Spring Security `DelegatingPasswordEncoder`，当前写入带随机盐的 bcrypt 单向哈希。
+- 头像以压缩后的 JPEG data URI 保存在用户文档中，服务端限制在 300000 字符以内。
 - API 和页面不会返回密码哈希、MongoDB `_id` 或数据库凭据。
 - 登录通过 HttpOnly Session Cookie 保持，名称、路径、Secure、SameSite 和有效期由 `.env` 配置。
 - `admin_users` 保存管理员 UID。UID 出现在该集合中时，下一次登录会获得 `USER` 与 `ADMIN` 角色。
 - 公开注册不会授予管理员身份，也没有公开的管理员授权接口。
 
+### 用户管理
+
+登录后顶部显示「欢迎{用户名}」，点击展开菜单可进入 `/account`，或直接退出登录。
+
+| 管理项     | 界面位置              | 接口                     | 要求                                           |
+| ---------- | --------------------- | ------------------------ | ---------------------------------------------- |
+| 修改头像   | `/account` 头像卡片   | `PUT /api/auth/avatar`   | 图片，客户端裁剪为 256×256                     |
+| 修改用户名 | `/account` 用户名卡片 | `PUT /api/auth/username` | 3–32 字符，允许与他人重复                      |
+| 改绑邮箱   | `/account` 邮箱卡片   | `PUT /api/auth/email`    | 需当前密码；验证开启时需输入新邮箱收到的验证码 |
+| 修改密码   | `/account` 密码卡片   | `PUT /api/auth/password` | 需当前密码，成功后该账号的全部会话失效         |
+
+头像在前端读取文件后用 `canvas` 居中裁剪并压缩为 JPEG data URI，超过 5 MB 的源文件会被拒绝。开启邮箱验证时，改绑会在新地址验证成功前保留原邮箱。密码修改成功后服务端递增账号会话版本，所有已登录设备的会话都会在下次请求时失效。
+
 MongoDB 使用业务数据库 `imzako`，启动时创建并检查：
 
-| 集合          | 用途                                 |
-| ------------- | ------------------------------------ |
-| `users`       | 网站用户、资料与密码哈希             |
-| `admin_users` | 管理员 UID 名单                      |
-| `sequences`   | UID 原子递增序列，初始值为 `1000000` |
+| 集合                  | 用途                                                |
+| --------------------- | --------------------------------------------------- |
+| `users`               | 网站用户、资料与密码哈希                            |
+| `admin_users`         | 管理员 UID 名单                                     |
+| `sequences`           | UID 原子递增序列，初始值为 `1000000`                |
+| `email_verifications` | 待验证的邮箱验证码（只有哈希，到期由 TTL 索引清理） |
+
+启动时还会删除旧版本遗留的 `username_unique` 索引，并把没有 `emailVerified` 字段的存量账号标记为已验证。
 
 `authSource=admin` 只表示 MongoDB 凭据在系统 `admin` 数据库中验证；网站用户不会存入 MongoDB 系统数据库。字段、注册请求和管理员授权方法见 [账号与管理员文档](docs/frontend-auth.md)。
 
@@ -140,7 +228,14 @@ npm run dev
 | `http://localhost:5173/blog`     | Vite 博客列表                  |
 | `http://localhost:5173/login`    | Vite 登录页面                  |
 | `http://localhost:5173/register` | Vite 注册页面                  |
+| `http://localhost:5173/account`  | Vite 用户管理页面              |
 | `http://localhost:8080/`         | Spring Boot 打包后的前端与 API |
+
+新建一篇文章（无需重启任何进程，保存后自动上线）：
+
+```powershell
+npm run blog -- -n "文章名称" -t "技术 笔记"
+```
 
 Vite 将 `/api` 转发到 `BACKEND_URL`，默认是 `http://127.0.0.1:8080`。仅启动 Vite 时不会扫描 Markdown、连接 MongoDB 或提供认证接口，因此完整开发环境需要同时启动后端。
 
@@ -171,6 +266,7 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 | `GET /blog/posts/{slug}`          | Markdown 文章详情，支持嵌套路径与直接刷新 |
 | `GET /login`、`GET /login/`       | 用户登录页面                              |
 | `GET /register`、`GET /register/` | 用户注册页面                              |
+| `GET /account`、`GET /account/`   | 用户管理页面（头像、用户名、邮箱、密码）  |
 | `GET /about`、`GET /about/`       | 兼容旧地址，前端重定向至 `/`              |
 
 只有已知页面路由会转发至 Vue。未知页面、API 和静态资源返回 404，避免把错误请求误返回为 HTML。
@@ -189,12 +285,32 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 
 ### 账号
 
-| 接口                      | 说明                                  |
-| ------------------------- | ------------------------------------- |
-| `POST /api/auth/register` | 注册普通用户；成功返回 201 并建立会话 |
-| `POST /api/auth/login`    | 以用户名或邮箱登录                    |
-| `GET /api/auth/me`        | 获取当前会话用户；未登录返回 401      |
-| `POST /api/auth/logout`   | 注销并使当前会话失效，返回 204        |
+| 接口                             | 说明                                                          |
+| -------------------------------- | ------------------------------------------------------------- |
+| `POST /api/auth/register`        | 注册普通用户；邮箱验证关闭时返回 201 并建立会话               |
+| `POST /api/auth/register/verify` | 提交邮箱验证码；成功返回用户并建立会话（验证开启时使用）      |
+| `POST /api/auth/register/resend` | 重发邮箱验证码；返回 204，冷却期内返回 400                    |
+| `GET /api/auth/captcha`          | 返回 PNG 图形验证码，答案在 `X-Captcha-Id` 对应的服务端记录中 |
+| `POST /api/auth/login`           | 以**邮箱或 UID** 登录；需要时返回 428 要求验证码或邮箱验证    |
+| `GET /api/auth/me`               | 获取当前会话用户；未登录返回 401                              |
+| `PUT /api/auth/username`         | 修改用户名；允许与他人重复，因此不会返回 409                  |
+| `PUT /api/auth/avatar`           | 设置或清除头像（`avatar: null` 表示清除）                     |
+| `PUT /api/auth/email`            | 改绑邮箱；需当前密码，新邮箱已存在时返回 409                  |
+| `POST /api/auth/email/verify`    | 提交新邮箱收到的验证码，成功后完成改绑                        |
+| `PUT /api/auth/password`         | 修改密码；需当前密码，成功后使该账号的全部会话失效并返回 204  |
+| `POST /api/auth/logout`          | 注销并使当前会话失效，返回 204                                |
+
+登录成功返回（邮箱验证关闭时的常规响应）：
+
+```json
+{
+  "user": { "id": 1000001, "username": "member", "email": "member@example.com", "roles": ["USER"] },
+  "verificationRequired": false,
+  "maskedEmail": null
+}
+```
+
+需要邮箱验证时 `user` 为 `null`、`verificationRequired` 为 `true`，`maskedEmail` 给出收信地址的打码形式。
 
 注册示例：
 
@@ -203,12 +319,17 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
   "email": "member@example.com",
   "username": "member",
   "password": "a-long-private-password",
-  "gender": "undisclosed",
-  "birthday": "2000-01-02"
+  "avatar": "data:image/jpeg;base64,..."
 }
 ```
 
-`gender` 可使用 `male`、`female`、`other`、`undisclosed`。`birthday` 可省略，但提供时必须早于当前日期。
+`avatar` 可省略。`gender` 与 `birthday` 字段已从注册接口移除。
+
+改绑邮箱示例：
+
+```json
+{ "currentPassword": "a-long-private-password", "email": "new@example.com" }
+```
 
 ## `.env` 配置
 
@@ -216,19 +337,20 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 
 不要把 `.env`、数据库密码、Cookie 密钥、Token 密钥或 SMTP 密码提交到版本库。
 
-| 分组          | 变量                                                                                                                                                                           | 当前用途                                                      |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| 应用与域名    | `APP_NAME`、`APP_ENV`、`PUBLIC_DOMAIN`、`PUBLIC_URL`、`GIT_DOMAIN`、`BLOG_PUBLIC_URL`                                                                                          | 服务端与部署环境信息                                          |
-| 本地端口      | `BACKEND_URL`、`FRONTEND_DEV_URL`、`SERVER_PORT`、`TRUST_PROXY`                                                                                                                | 后端端口与 Vite API 代理                                      |
-| Cookie 与会话 | `COOKIE_NAME`、`COOKIE_DOMAIN`、`COOKIE_PATH`、`COOKIE_HTTP_ONLY`、`COOKIE_SECURE`、`COOKIE_SAME_SITE`、`COOKIE_SECRET`、`SESSION_TTL_SECONDS`                                 | 登录会话；当前直接使用除 Domain 与 Secret 外的 Cookie 配置    |
-| Token         | `TOKEN_ISSUER`、`ACCESS_TOKEN_TTL_SECONDS`、`REFRESH_TOKEN_TTL_SECONDS`、`EMAIL_VERIFICATION_TOKEN_TTL_SECONDS`、`PASSWORD_RESET_TOKEN_TTL_SECONDS`、`TOKEN_SECRET`            | 为后续 Token、邮箱验证与密码重置预留                          |
-| MongoDB       | `MONGODB_URI`、`MONGODB_DATABASE`、`MONGODB_USERNAME`、`MONGODB_PASSWORD`、`MONGODB_AUTH_SOURCE`、`MONGODB_CONNECT_TIMEOUT_MS`、`MONGODB_SOCKET_TIMEOUT_MS`                    | 用户、管理员与 UID 序列；后端当前使用 `MONGODB_URI`           |
-| 跨域          | `ALLOWED_ORIGINS`、`ALLOWED_METHODS`、`ALLOWED_HEADERS`、`ALLOW_CREDENTIALS`                                                                                                   | 当前启用允许来源与携带凭据；方法和请求头采用后端安全白名单    |
-| 安全预留      | `CSRF_ENABLED`、`PASSWORD_MIN_LENGTH`、`BCRYPT_COST`、`LOGIN_MAX_ATTEMPTS`、`LOGIN_LOCK_SECONDS`、`RATE_LIMIT_ENABLED`、`RATE_LIMIT_WINDOW_SECONDS`、`RATE_LIMIT_MAX_REQUESTS` | 后续 CSRF、密码策略、登录锁定和限流扩展；尚未全部接入运行逻辑 |
-| SMTP          | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_TLS`、`SMTP_AUTH`、`SMTP_CONNECTION_TIMEOUT_MS`、`SMTP_TIMEOUT_MS`、`SENDER`、`SENDER_NAME`                          | 邮箱验证、通知与密码重置预留，当前不发送邮件                  |
-| 前端站点      | `VITE_SITE_NAME`、`VITE_PUBLIC_DOMAIN`、`VITE_GIT_URL`、`VITE_BLOG_URL`、`VITE_EXTRA_SITES_JSON`                                                                               | 品牌、域名和服务导航                                          |
-| 前端接口      | `VITE_LOGIN_ENDPOINT`、`VITE_REGISTER_ENDPOINT`、`VITE_HITOKOTO_API_URL`                                                                                                       | 登录、注册与一言接口地址                                      |
-| 博客          | `BLOG_DIRECTORY`、`VITE_BLOG_API_URL`、`VITE_BLOG_POST_URL`、`VITE_BLOG_EVENTS_URL`                                                                                            | Markdown 目录、列表、正文与实时通知                           |
+| 分组          | 变量                                                                                                                                                                                                                                                                                                                                                                                                                                      | 当前用途                                                      |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| 应用与域名    | `APP_NAME`、`APP_ENV`、`PUBLIC_DOMAIN`、`PUBLIC_URL`、`GIT_DOMAIN`、`BLOG_PUBLIC_URL`                                                                                                                                                                                                                                                                                                                                                     | 服务端与部署环境信息                                          |
+| 本地端口      | `BACKEND_URL`、`FRONTEND_DEV_URL`、`SERVER_PORT`、`TRUST_PROXY`                                                                                                                                                                                                                                                                                                                                                                           | 后端端口与 Vite API 代理                                      |
+| Cookie 与会话 | `COOKIE_NAME`、`COOKIE_DOMAIN`、`COOKIE_PATH`、`COOKIE_HTTP_ONLY`、`COOKIE_SECURE`、`COOKIE_SAME_SITE`、`COOKIE_SECRET`、`SESSION_TTL_SECONDS`                                                                                                                                                                                                                                                                                            | 登录会话；当前直接使用除 Domain 与 Secret 外的 Cookie 配置    |
+| Token         | `TOKEN_ISSUER`、`ACCESS_TOKEN_TTL_SECONDS`、`REFRESH_TOKEN_TTL_SECONDS`、`EMAIL_VERIFICATION_TOKEN_TTL_SECONDS`、`PASSWORD_RESET_TOKEN_TTL_SECONDS`、`TOKEN_SECRET`                                                                                                                                                                                                                                                                       | 为后续 Token、邮箱验证与密码重置预留                          |
+| MongoDB       | `MONGODB_URI`、`MONGODB_DATABASE`、`MONGODB_USERNAME`、`MONGODB_PASSWORD`、`MONGODB_AUTH_SOURCE`、`MONGODB_CONNECT_TIMEOUT_MS`、`MONGODB_SOCKET_TIMEOUT_MS`                                                                                                                                                                                                                                                                               | 用户、管理员与 UID 序列；后端当前使用 `MONGODB_URI`           |
+| 跨域          | `ALLOWED_ORIGINS`、`ALLOWED_METHODS`、`ALLOWED_HEADERS`、`ALLOW_CREDENTIALS`                                                                                                                                                                                                                                                                                                                                                              | 当前启用允许来源与携带凭据；方法和请求头采用后端安全白名单    |
+| 安全预留      | `CSRF_ENABLED`、`PASSWORD_MIN_LENGTH`、`BCRYPT_COST`、`LOGIN_MAX_ATTEMPTS`、`LOGIN_LOCK_SECONDS`、`RATE_LIMIT_ENABLED`、`RATE_LIMIT_WINDOW_SECONDS`、`RATE_LIMIT_MAX_REQUESTS`                                                                                                                                                                                                                                                            | 后续 CSRF、密码策略、登录锁定和限流扩展；尚未全部接入运行逻辑 |
+| SMTP          | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_TLS`、`SMTP_AUTH`、`SMTP_CONNECTION_TIMEOUT_MS`、`SMTP_TIMEOUT_MS`、`SENDER`、`SENDER_NAME`                                                                                                                                                                                                                                                                                     | 已接入邮件发送，映射到 `spring.mail.*` 与 `app.mail.*`        |
+| 账号门禁      | `app.email-verification.enabled`、`app.captcha.enabled`、`EMAIL_VERIFICATION_TTL_SECONDS`、`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`、`EMAIL_VERIFICATION_MAX_SENDS_PER_HOUR`、`LOGIN_CAPTCHA_THRESHOLD`、`LOGIN_FAILURE_WINDOW_SECONDS`、`LOGIN_FAILURE_MAX_TRACKED_KEYS`、`REGISTRATION_MAX_REQUESTS_PER_HOUR`、`VERIFICATION_RESEND_MAX_REQUESTS_PER_HOUR`、`CAPTCHA_MAX_REQUESTS_PER_MINUTE`、`PUBLIC_RATE_LIMIT_MAX_TRACKED_KEYS` | 邮箱验证、图形验证码和公开接口限流                            |
+| 前端站点      | `VITE_SITE_NAME`、`VITE_PUBLIC_DOMAIN`、`VITE_GIT_URL`、`VITE_BLOG_URL`、`VITE_EXTRA_SITES_JSON`                                                                                                                                                                                                                                                                                                                                          | 品牌、域名和服务导航                                          |
+| 前端接口      | `VITE_LOGIN_ENDPOINT`、`VITE_REGISTER_ENDPOINT`、`VITE_HITOKOTO_API_URL`                                                                                                                                                                                                                                                                                                                                                                  | 登录、注册与一言接口地址                                      |
+| 博客          | `BLOG_DIRECTORY`、`VITE_BLOG_API_URL`、`VITE_BLOG_POST_URL`、`VITE_BLOG_EVENTS_URL`                                                                                                                                                                                                                                                                                                                                                       | Markdown 目录、列表、正文与实时通知                           |
 
 额外站点配置示例：
 
@@ -252,14 +374,16 @@ npm run test:unit -- --run
 .\mvnw.cmd clean verify
 ```
 
-Maven 在 `generate-resources` 阶段执行 `npm run build`，其中包含 TypeScript 类型检查，然后将 `dist` 复制到 JAR 的静态资源目录。
+Maven 在 `generate-resources` 阶段执行 `npm run build`，其中包含 TypeScript 类型检查，然后将 `dist` 复制到 JAR 的静态资源目录；`test` 阶段会执行 Vitest，因此 `verify` 会同时验证前后端。
 
 最近一次验证结果：
 
-- 40 项前端测试通过。
-- 22 项 Java 测试通过。
+- **72 项前端测试通过**（9 个测试文件），覆盖登录、注册（含验证码步骤与图形验证码）、新邮箱改绑验证、用户管理与顶部菜单。
+- **65 项 Java 测试通过**，另有 1 项真实 SMTP 探测默认跳过；覆盖 front matter 与草稿过滤、图形验证码、登录计数上限、公开注册限流、邮箱改绑和会话版本。
 - Markdown 文件新增、修改、替换保存、重命名、删除和 SSE 重连均使用真实临时文件与 HTTP 连接测试。
+- front matter 的标题、日期、标签、缺省回退与「不泄漏进正文/摘要」均有测试覆盖。
 - 密码哈希、UID 分配、普通用户与管理员角色判定包含独立测试。
+- 真实 SMTP 发信是显式开启的探测项，常规 `verify` 不会对外发送邮件；邮件发送和失败回滚在单元测试中通过可控的 `MailService` 验证。
 - `npm audit` 未发现漏洞。
 
 ## 打包与部署
@@ -279,7 +403,7 @@ java -jar target\imzako-0.0.1-SNAPSHOT.jar
 3. 将 `COOKIE_SECURE` 设置为 `true`，并使用 HTTPS。
 4. 为 `/api/blog/events` 关闭反向代理缓冲，并让读取超时大于 15 秒。
 5. 保证应用可以连接 MongoDB；生产环境建议使用权限受限的专用数据库账号。
-6. 部署到公网并持续开放注册时，接入 SMTP 邮箱验证、CSRF 防护、注册限流和登录失败锁定。
+6. 部署到公网并持续开放注册时，将 `app.email-verification.enabled` 与 `app.captcha.enabled` 设为 `true`，并确认 SMTP 可用；两项功能已实现，只是默认关闭。
 
 Markdown 文件是运行时内容，不会打包到 JAR。保存文章即可发布，无需重新构建应用。
 
@@ -287,15 +411,22 @@ Markdown 文件是运行时内容，不会打包到 JAR。保存文章即可发�
 
 ```text
 blog/                                  Markdown 文章与本地图片
-docs/frontend-auth.md                  用户、MongoDB 与管理员说明
-docs/frontend-blog.md                  Markdown 博客与实时更新说明
+docs/frontend-auth.md                  用户、MongoDB、管理员与用户管理说明
+docs/frontend-blog.md                  Markdown 博客、front matter 与实时更新说明
+scripts/new-post.mjs                   新建文章的博客命令
 src/components/                        博客列表、主题开关、一言页脚等组件
-src/composables/                       全局可复用状态与主题逻辑
+src/composables/useAuth.ts             共享登录态、账号名与头像回退
+src/composables/useTheme.ts            白天/夜间主题
 src/config/sites.ts                    服务导航和扩展站点配置
 src/router/                            Vue 页面路由
-src/services/                          登录、博客、实时更新和 Markdown 渲染
-src/views/                             Home、Blog、文章详情、Login 等页面
-src/main/java/com/imzako/auth/         MongoDB 用户、管理员、UID 与认证接口
+src/services/auth.ts                   登录、注册与账号管理接口
+src/services/avatar.ts                 头像裁剪与压缩
+src/services/blog.ts                   博客列表与正文
+src/services/blogUpdates.ts            SSE 实时同步
+src/services/markdown.ts               Markdown 渲染与代码高亮
+src/views/                             Home、Blog、文章详情、Login、Account 等页面
+src/main/java/com/imzako/auth/         MongoDB 用户、管理员、UID、验证码与认证接口
+src/main/java/com/imzako/mail/         SMTP 邮件发送与邮箱验证码
 src/main/java/com/imzako/blog/         Markdown 扫描、文件监听和博客 API
 src/main/java/com/imzako/web/          页面、健康检查与 CORS 配置
 src/main/resources/application.properties
@@ -309,6 +440,7 @@ vitest.config.ts                       前端测试配置
 
 ## 相关文档
 
+- [上线清单](docs/deployment.md)
 - [Markdown 博客与实时更新](docs/frontend-blog.md)
 - [用户、MongoDB 与管理员账号](docs/frontend-auth.md)
 - [Spring Boot Web](https://docs.spring.io/spring-boot/reference/web/servlet.html)

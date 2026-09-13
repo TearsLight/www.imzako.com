@@ -49,6 +49,10 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-crypto</artifactId>
         </dependency>
@@ -91,6 +95,19 @@
                         <goals><goal>exec</goal></goals>
                         <configuration>
                             <arguments><argument>run</argument><argument>build</argument></arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>frontend-test</id>
+                        <phase>test</phase>
+                        <goals><goal>exec</goal></goals>
+                        <configuration>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>test:unit</argument>
+                                <argument>--</argument>
+                                <argument>--run</argument>
+                            </arguments>
                         </configuration>
                     </execution>
                     <execution>

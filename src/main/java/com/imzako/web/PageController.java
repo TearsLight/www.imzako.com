@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class PageController {
     // Only known page routes fall back to Vue; missing APIs and assets remain 404.
-    @GetMapping({"/", "/blog", "/blog/", "/blog/posts/{*slug}", "/login", "/login/", "/register", "/register/", "/about", "/about/"})
+    @GetMapping({"/", "/blog", "/blog/", "/blog/posts/{*slug}", "/login", "/login/", "/register", "/register/", "/account", "/account/", "/about", "/about/"})
     public String page() {
         return "forward:/index.html";
     }

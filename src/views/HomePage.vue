@@ -1,5 +1,5 @@
-﻿<script setup lang="ts">
-import { siteName, sites } from '../config/sites'
+<script setup lang="ts">
+import { sites } from '../config/sites'
 import BlogFeed from '../components/BlogFeed.vue'
 
 function scrollToBlog() {
@@ -15,7 +15,7 @@ function scrollToBlog() {
     <section class="portal-intro reveal" aria-labelledby="home-heading">
       <div>
         <p class="eyebrow">
-          <span class="small-cross" aria-hidden="true">✳</span> {{ siteName.toUpperCase() }} /
+          <span class="small-cross" aria-hidden="true">✳</span>
           PERSONAL PORTAL
         </p>
         <h1 id="home-heading">Connect To</h1>
@@ -41,7 +41,7 @@ function scrollToBlog() {
           :rel="site.id === 'git' ? 'noopener noreferrer' : undefined"
           class="service-card reveal"
           :class="[
-            { 'service-card-featured': site.id === 'git', 'service-card-placeholder': !site.href },
+            { 'service-card-placeholder': !site.href },
             `delay-${Math.min(index + 1, 3)}`,
           ]"
           :aria-label="

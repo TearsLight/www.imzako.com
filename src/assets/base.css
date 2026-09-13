@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   color-scheme: light;
   --paper: #f9f8f5;
   --ink: #262724;
@@ -8,12 +8,6 @@
   --surface: #fffefa;
   --surface-muted: #f1eee5;
   --surface-hover: #eeeee8;
-  --featured: #292f29;
-  --featured-hover: #333b31;
-  --on-featured: #f9f8f5;
-  --featured-muted: #bfc6b7;
-  --featured-line: #4b5145;
-  --featured-icon: #41483d;
   --accent-soft: #f2946c;
   --signature: #bbbeb3;
   --placeholder: #8b8e82;
@@ -49,12 +43,6 @@
   --surface: #111110;
   --surface-muted: #1b1b19;
   --surface-hover: #22221f;
-  --featured: #f2f2ef;
-  --featured-hover: #deded9;
-  --on-featured: #11110f;
-  --featured-muted: #55554f;
-  --featured-line: #cecec7;
-  --featured-icon: #d8d8d1;
   --accent-soft: #b84927;
   --signature: #585853;
   --placeholder: #9a9a93;

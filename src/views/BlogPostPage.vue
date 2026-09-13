@@ -14,6 +14,13 @@ const article = ref<BlogArticle | null>(null)
 const loading = ref(true)
 const notice = ref('')
 const missing = ref(false)
+/** Prefers the category list, falling back to the joined string from older servers. */
+const categoryLabel = computed(() => {
+  const post = article.value?.post
+  if (!post) return ''
+  const list = post.categories?.length ? post.categories : null
+  return list ? list.join(' · ') : post.category
+})
 const content = computed(() =>
   article.value
     ? renderMarkdown(
@@ -91,7 +98,7 @@ onBeforeUnmount(() => {
     </div>
     <article v-if="article" class="article-document">
       <header class="article-heading">
-        <p class="eyebrow">{{ article.post.category }} / THE JOURNAL</p>
+        <p class="eyebrow">{{ categoryLabel }} / THE JOURNAL</p>
         <h1>{{ article.post.title }}</h1>
         <p class="article-date">
           更新于

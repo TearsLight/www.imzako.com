@@ -1,33 +1,44 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { AuthError, register, type AuthUser, type RegisterCredentials } from '../services/auth'
+import {
+  AuthError,
+  register,
+  resendVerification,
+  verifyRegistration,
+  type AuthUser,
+  type RegisterCredentials,
+} from '../services/auth'
+import { useAuth } from '../composables/useAuth'
 
+const { setUser } = useAuth()
 const email = ref('')
 const username = ref('')
 const password = ref('')
 const passwordConfirmation = ref('')
-const gender = ref<RegisterCredentials['gender']>('undisclosed')
-const birthday = ref('')
 const showPassword = ref(false)
 const submitted = ref(false)
 const pending = ref(false)
 const error = ref('')
-const user = ref<AuthUser | null>(null)
+/** Set once the account exists; the panel then asks for the emailed code. */
+const maskedEmail = ref('')
+const verifiedUser = ref<AuthUser | null>(null)
+const code = ref('')
+const verifying = ref(false)
+const verifyError = ref('')
+const resent = ref(false)
 
 const emailInput = ref<HTMLInputElement | null>(null)
 const usernameInput = ref<HTMLInputElement | null>(null)
 const passwordInput = ref<HTMLInputElement | null>(null)
 const passwordConfirmationInput = ref<HTMLInputElement | null>(null)
-const birthdayInput = ref<HTMLInputElement | null>(null)
 const successHeading = ref<HTMLElement | null>(null)
+const codeInput = ref<HTMLInputElement | null>(null)
 
-const today = toDateValue(new Date())
-const latestBirthday = (() => {
-  const date = new Date()
-  date.setDate(date.getDate() - 1)
-  return toDateValue(date)
-})()
+const successName = computed(
+  () => verifiedUser.value?.displayName?.trim() || verifiedUser.value?.username || '',
+)
+const successUid = computed(() => verifiedUser.value?.id ?? '')
 
 const emailError = computed(() => {
   if (!submitted.value) return ''
@@ -54,20 +65,10 @@ const passwordConfirmationError = computed(() => {
   if (!passwordConfirmation.value) return '请再次输入密码。'
   return passwordConfirmation.value === password.value ? '' : '两次输入的密码不一致。'
 })
-const birthdayError = computed(() =>
-  submitted.value && birthday.value && birthday.value >= today ? '生日必须早于今天。' : '',
-)
 
 let controller: AbortController | undefined
 let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
-
-function toDateValue(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 async function focusFirstError() {
   await nextTick()
@@ -75,7 +76,6 @@ async function focusFirstError() {
   else if (usernameError.value) usernameInput.value?.focus()
   else if (passwordError.value) passwordInput.value?.focus()
   else if (passwordConfirmationError.value) passwordConfirmationInput.value?.focus()
-  else if (birthdayError.value) birthdayInput.value?.focus()
 }
 
 async function submit() {
@@ -86,8 +86,7 @@ async function submit() {
     emailError.value ||
     usernameError.value ||
     passwordError.value ||
-    passwordConfirmationError.value ||
-    birthdayError.value
+    passwordConfirmationError.value
   ) {
     await focusFirstError()
     return
@@ -102,23 +101,75 @@ async function submit() {
         email: email.value.trim(),
         username: username.value.trim(),
         password: password.value,
-        gender: gender.value,
-        birthday: birthday.value || null,
       },
       controller.signal,
     )
     if (disposed || controller.signal.aborted) return
-    user.value = result.user
+    // The account exists but has no session yet: the emailed code comes next.
+    maskedEmail.value = result.maskedEmail ?? email.value.trim()
+    code.value = ''
+    verifyError.value = ''
+    resent.value = false
     password.value = ''
     passwordConfirmation.value = ''
     await nextTick()
-    successHeading.value?.focus()
+    codeInput.value?.focus()
   } catch (cause) {
     if (!disposed)
       error.value = cause instanceof AuthError ? cause.message : '注册失败，请稍后重试。'
   } finally {
     clearTimeout(timer)
     if (!disposed) pending.value = false
+  }
+}
+
+async function verify() {
+  if (verifying.value) return
+  verifyError.value = ''
+  resent.value = false
+  if (!code.value.trim()) {
+    verifyError.value = '请输入邮件中的验证码。'
+    return
+  }
+
+  verifying.value = true
+  controller = new AbortController()
+  timer = setTimeout(() => controller?.abort(), 10000)
+  try {
+    const result = await verifyRegistration(email.value.trim(), code.value.trim(), controller.signal)
+    if (disposed || controller.signal.aborted) return
+    if (result.user) {
+      verifiedUser.value = result.user
+      setUser(result.user)
+    }
+    await nextTick()
+    successHeading.value?.focus()
+  } catch (cause) {
+    if (!disposed)
+      verifyError.value = cause instanceof AuthError ? cause.message : '验证失败，请稍后重试。'
+  } finally {
+    clearTimeout(timer)
+    if (!disposed) verifying.value = false
+  }
+}
+
+async function resend() {
+  if (verifying.value) return
+  verifyError.value = ''
+  resent.value = false
+  verifying.value = true
+  controller = new AbortController()
+  timer = setTimeout(() => controller?.abort(), 10000)
+  try {
+    await resendVerification(email.value.trim(), controller.signal)
+    if (disposed || controller.signal.aborted) return
+    resent.value = true
+  } catch (cause) {
+    if (!disposed)
+      verifyError.value = cause instanceof AuthError ? cause.message : '重发失败，请稍后重试。'
+  } finally {
+    clearTimeout(timer)
+    if (!disposed) verifying.value = false
   }
 }
 
@@ -146,7 +197,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div class="login-panel register-panel reveal delay-1">
-      <template v-if="!user">
+      <template v-if="!maskedEmail && !verifiedUser">
         <nav class="account-switch" aria-label="账户操作">
           <RouterLink to="/login">登录</RouterLink>
           <RouterLink to="/register" aria-current="page">注册</RouterLink>
@@ -269,40 +320,10 @@ onBeforeUnmount(() => {
             </p>
           </div>
 
-          <div class="form-row">
-            <div class="form-field">
-              <label for="register-gender">性别</label>
-              <select id="register-gender" v-model="gender" name="gender" :disabled="pending">
-                <option value="undisclosed">不透露</option>
-                <option value="male">男</option>
-                <option value="female">女</option>
-                <option value="other">其他</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label for="register-birthday">生日 <span class="optional-label">可选</span></label>
-              <input
-                id="register-birthday"
-                ref="birthdayInput"
-                v-model="birthday"
-                name="birthday"
-                type="date"
-                autocomplete="bday"
-                :max="latestBirthday"
-                :disabled="pending"
-                :aria-invalid="!!birthdayError"
-                :aria-describedby="birthdayError ? 'register-birthday-error' : undefined"
-              />
-              <p v-if="birthdayError" id="register-birthday-error" class="field-error">
-                {{ birthdayError }}
-              </p>
-            </div>
-          </div>
-
           <p v-if="error" class="login-error" role="alert">{{ error }}</p>
           <button class="button button-dark login-submit" type="submit" :disabled="pending">
             <span v-if="pending" class="loading-spinner" aria-hidden="true" />{{
-              pending ? '正在创建账户…' : '注册并登录'
+              pending ? '正在创建账户…' : '注册并发送验证码'
             }}<span v-if="!pending" aria-hidden="true">↗</span>
           </button>
         </form>
@@ -312,14 +333,55 @@ onBeforeUnmount(() => {
         </p>
       </template>
 
+      <template v-else-if="maskedEmail && !verifiedUser">
+        <p class="eyebrow">VERIFY EMAIL</p>
+        <h1 id="register-heading">输入验证码</h1>
+        <p class="login-intro">
+          账号已创建。我们已向 <strong>{{ maskedEmail }}</strong> 发送 6 位验证码，请查收后完成验证。
+        </p>
+
+        <form novalidate :aria-busy="verifying" @submit.prevent="verify">
+          <div class="form-field">
+            <label for="register-code">验证码</label>
+            <input
+              id="register-code"
+              ref="codeInput"
+              v-model="code"
+              name="code"
+              type="text"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              :spellcheck="false"
+              placeholder="6 位数字"
+              maxlength="6"
+              required
+              :disabled="verifying"
+            />
+          </div>
+
+          <p v-if="verifyError" class="login-error" role="alert">{{ verifyError }}</p>
+          <p v-if="resent" class="field-success" role="status">验证码已重新发送。</p>
+          <button class="button button-dark login-submit" type="submit" :disabled="verifying">
+            <span v-if="verifying" class="loading-spinner" aria-hidden="true" />{{
+              verifying ? '正在验证…' : '验证并登录'
+            }}<span v-if="!verifying" aria-hidden="true">↗</span>
+          </button>
+        </form>
+
+        <p class="login-return-note">
+          没有收到？<button type="button" class="link-button" :disabled="verifying" @click="resend">
+            重新发送验证码
+          </button>
+        </p>
+      </template>
+
       <div v-else class="login-success">
         <span class="success-mark" aria-hidden="true">✓</span>
         <p class="eyebrow">ACCOUNT READY</p>
         <h1 id="register-heading" ref="successHeading" tabindex="-1">注册成功</h1>
-        <p>欢迎加入，{{ user.displayName || user.username }}。</p>
-        <p class="account-id">UID {{ user.id }}</p>
-        <RouterLink class="button button-dark" to="/"
-          >开始浏览 <span aria-hidden="true">↗</span></RouterLink
+        <p>欢迎加入，{{ successName }}。</p>
+        <p class="account-id">UID {{ successUid }}</p>        <RouterLink class="button button-dark" to="/account"
+          >前往用户管理 <span aria-hidden="true">↗</span></RouterLink
         >
       </div>
     </div>

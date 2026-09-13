@@ -60,6 +60,135 @@ class MarkdownBlogTest {
     }
 
     @Test
+    void frontMatterSuppliesTheTitleDateAndCategories() throws Exception {
+        Files.writeString(directory.resolve("guide.md"), """
+                ---
+                title: Front Matter 指南
+                date: 2026-09-12T21:30:00+08:00
+                tags: 技术 Markdown
+                ---
+
+                # 正文标题会被忽略
+
+                正文内容。
+                """);
+        try (var blog = runningBlog()) {
+            var post = blog.article("guide").orElseThrow().post();
+            assertThat(post.title()).isEqualTo("Front Matter 指南");
+            assertThat(post.publishedAt()).isEqualTo("2026-09-12T13:30:00Z");
+            assertThat(post.categories()).containsExactly("技术", "Markdown");
+            assertThat(post.category()).isEqualTo("技术 · Markdown");
+            // The metadata block must not leak into the body or the excerpt.
+            String body = blog.article("guide").orElseThrow().markdown();
+            assertThat(body).doesNotContain("title:").doesNotContain("---");
+            assertThat(body).startsWith("# 正文标题会被忽略");
+            assertThat(post.excerpt()).doesNotContain("Front Matter 指南").doesNotContain("tags");
+        }
+    }
+
+    @Test
+    void draftFrontMatterKeepsAnArticleOutOfThePublicIndex() throws Exception {
+        Files.writeString(directory.resolve("draft.md"), """
+                ---
+                title: Work in progress
+                draft: true
+                ---
+
+                This must stay private.
+                """);
+
+        try (var blog = runningBlog()) {
+            assertThat(blog.posts(10)).isEmpty();
+            assertThat(blog.article("draft")).isEmpty();
+        }
+    }
+
+    @Test
+    void frontMatterTagsMergeWithTheContentDirectory() throws Exception {
+        Path folder = Files.createDirectory(directory.resolve("notes"));
+        Files.writeString(folder.resolve("merge.md"), """
+                ---
+                title: 合并分类
+                date: 2026-09-10
+                tags: 技术 笔记
+                ---
+
+                内容。
+                """);
+        try (var blog = runningBlog()) {
+            var post = blog.article("notes/merge").orElseThrow().post();
+            // Tags come first, then the directory, without duplicates.
+            assertThat(post.categories()).containsExactly("技术", "笔记", "notes");
+            assertThat(post.category()).isEqualTo("技术 · 笔记 · notes");
+            // A date-only value is read as UTC midnight.
+            assertThat(post.publishedAt()).isEqualTo("2026-09-10T00:00:00Z");
+        }
+    }
+
+    @Test
+    void withoutFrontMatterTheHeadingAndDirectoryStillDecide() throws Exception {
+        Path folder = Files.createDirectory(directory.resolve("随笔"));
+        Files.writeString(folder.resolve("plain.md"), "# 一级标题决定标题\n\n内容。");
+        try (var blog = runningBlog()) {
+            var post = blog.article("随笔/plain").orElseThrow().post();
+            assertThat(post.title()).isEqualTo("一级标题决定标题");
+            assertThat(post.categories()).containsExactly("随笔");
+            assertThat(post.category()).isEqualTo("随笔");
+        }
+    }
+
+    @Test
+    void anUnparseableFrontMatterDateFallsBackToTheFileTime() throws Exception {
+        Path file = Files.writeString(directory.resolve("bad-date.md"), """
+                ---
+                title: 日期无法解析
+                date: 昨天下午
+                tags: 测试
+                ---
+
+                内容。
+                """);
+        Instant stamp = Instant.parse("2026-09-01T04:05:06Z");
+        Files.setLastModifiedTime(file, FileTime.from(stamp));
+        try (var blog = runningBlog()) {
+            var post = blog.article("bad-date").orElseThrow().post();
+            assertThat(post.title()).isEqualTo("日期无法解析");
+            assertThat(post.publishedAt()).isEqualTo(stamp.toString());
+        }
+    }
+
+    @Test
+    void frontMatterParsingToleratesQuotesHashesAndCommas() {
+        var parsed = MarkdownBlog.parseFrontMatter("""
+                ---
+                title: "带引号的标题"
+                date: 2026-09-12 21:30:00
+                tags: #技术, 笔记，Design
+                ---
+
+                内容
+                """);
+        assertThat(parsed.title()).isEqualTo("带引号的标题");
+        assertThat(parsed.tags()).containsExactly("技术", "笔记", "Design");
+        assertThat(parsed.date()).isEqualTo("2026-09-12T21:30:00Z");
+    }
+
+    @Test
+    void frontMatterHelpersHandleMissingAndOddInput() {
+        assertThat(MarkdownBlog.parseFrontMatter("# 没有 front matter").title()).isNull();
+        assertThat(MarkdownBlog.parseFrontMatter("# 没有 front matter").tags()).isEmpty();
+        // A block that never closes is treated as ordinary content.
+        assertThat(MarkdownBlog.stripFrontMatter("---\ntitle: x\n\n正文")).startsWith("---");
+        assertThat(MarkdownBlog.splitTags("   ")).isEmpty();
+        assertThat(MarkdownBlog.splitTags("-")).isEmpty();
+        assertThat(MarkdownBlog.splitTags("a  b   c")).containsExactly("a", "b", "c");
+        // Only the first directory segment counts as a category.
+        assertThat(MarkdownBlog.categories(java.util.List.of(), "notes/deep/post.md"))
+                .containsExactly("notes");
+        assertThat(MarkdownBlog.categories(java.util.List.of(), "root.md")).containsExactly("随笔");
+    }
+
+    @Test
     void imagePathsCannotEscapeTheBlogDirectory() throws Exception {
         Path root = Files.createDirectory(directory.resolve("blog"));
         Files.write(root.resolve("image.png"), new byte[] {1, 2});
