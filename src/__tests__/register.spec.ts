@@ -3,7 +3,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import RegisterPage from '../views/RegisterPage.vue'
 
-const fetchMock = vi.fn()
+const fetchMock = vi.fn<(input: string, options?: RequestInit) => Promise<unknown>>()
 enableAutoUnmount(afterEach)
 
 beforeEach(() => {
@@ -103,7 +103,7 @@ describe('public registration form', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(Object.keys(JSON.parse(fetchMock.mock.calls[0]![1].body)).sort()).toEqual([
+    expect(Object.keys(JSON.parse(fetchMock.mock.calls[0]![1]?.body as string)).sort()).toEqual([
       'email',
       'password',
       'username',

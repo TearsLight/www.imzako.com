@@ -10,7 +10,7 @@ import {
   verifyEmailChange,
 } from '../services/auth'
 import { AvatarError, prepareAvatar } from '../services/avatar'
-import { accountInitial, accountName, useAuth } from '../composables/useAuth'
+import { accountName, useAuth } from '../composables/useAuth'
 
 const { currentUser, avatar, initial, setUser, signOut } = useAuth()
 

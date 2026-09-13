@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import BlogFeed from '../components/BlogFeed.vue'
 
-const fetchMock = vi.fn()
+const fetchMock = vi.fn<(input: string, options?: RequestInit) => Promise<unknown>>()
 const post = (id: number) => ({
   id,
   title: `文章 ${id}`,
@@ -44,8 +44,8 @@ describe('blog preview', () => {
 
   it('waits for the home blog section to approach the viewport, then fetches only once', async () => {
     let callback!: IntersectionObserverCallback
-    const disconnect = vi.fn()
-    const observe = vi.fn()
+    const disconnect = vi.fn<() => void>()
+    const observe = vi.fn<(target: Element) => void>()
     vi.stubGlobal(
       'IntersectionObserver',
       class {
@@ -114,17 +114,17 @@ describe('blog preview', () => {
     fetchMock.mockImplementation(() => new Promise(() => {}))
     const wrapper = render()
     wrapper.unmount()
-    expect(fetchMock.mock.calls[0]![1].signal.aborted).toBe(true)
+    expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true)
   })
 
   it('shows a retry after a request times out', async () => {
     vi.useFakeTimers()
-    fetchMock.mockImplementation(
-      (_url, { signal }: { signal: AbortSignal }) =>
-        new Promise((_resolve, reject) => {
-          signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true })
-        }),
-    )
+    fetchMock.mockImplementation((_url, options) => {
+      const signal = options?.signal
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true })
+      })
+    })
     const wrapper = render()
     await vi.advanceTimersByTimeAsync(8000)
     expect(wrapper.find('[role="alert"]').exists()).toBe(true)

@@ -3,7 +3,7 @@ import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import LoginPage from '../views/LoginPage.vue'
 
-const fetchMock = vi.fn()
+const fetchMock = vi.fn<(input: string, options?: RequestInit) => Promise<unknown>>()
 enableAutoUnmount(afterEach)
 beforeEach(() => {
   fetchMock.mockReset()
@@ -165,16 +165,16 @@ describe('login form and API integration', () => {
     await fillForm(wrapper)
     await wrapper.get('form').trigger('submit')
     wrapper.unmount()
-    expect(callsTo('/api/auth/login')[0]![1].signal.aborted).toBe(true)
+    expect(callsTo('/api/auth/login')[0]![1]?.signal?.aborted).toBe(true)
   })
 
   it('times out after ten seconds and restores the submit button', async () => {
     vi.useFakeTimers()
     fetchMock.mockImplementation(
-      (url: string, init: { signal?: AbortSignal } = {}) =>
+      (url: string, init?: RequestInit) =>
         url === '/api/auth/login'
           ? new Promise((_resolve, reject) => {
-              init.signal?.addEventListener('abort', () => reject(new Error('Aborted')), {
+              init?.signal?.addEventListener('abort', () => reject(new Error('Aborted')), {
                 once: true,
               })
             })

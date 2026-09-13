@@ -8,7 +8,7 @@ const sentence = {
   from: '一言开发者中心',
 }
 const cacheKey = 'imzako:hitokoto:v1'
-const fetchMock = vi.fn()
+const fetchMock = vi.fn<(input: string, options?: RequestInit) => Promise<unknown>>()
 
 beforeEach(() => {
   localStorage.clear()
@@ -99,15 +99,15 @@ describe('Hitokoto footer', () => {
 
   it('aborts slow requests after five seconds', async () => {
     vi.useFakeTimers()
-    fetchMock.mockImplementation(
-      (_url, { signal }: { signal: AbortSignal }) =>
-        new Promise((_resolve, reject) => {
-          signal.addEventListener('abort', () => reject(new Error('Aborted')), { once: true })
-        }),
-    )
+    fetchMock.mockImplementation((_url, options) => {
+      const signal = options?.signal
+      return new Promise((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new Error('Aborted')), { once: true })
+      })
+    })
     const wrapper = mount(HitokotoFooter)
     await vi.advanceTimersByTimeAsync(5000)
-    expect(fetchMock.mock.calls[0]![1].signal.aborted).toBe(true)
+    expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true)
     expect(wrapper.text()).toBe('')
   })
 
@@ -115,6 +115,6 @@ describe('Hitokoto footer', () => {
     fetchMock.mockImplementation(() => new Promise(() => {}))
     const wrapper = mount(HitokotoFooter)
     wrapper.unmount()
-    expect(fetchMock.mock.calls[0]![1].signal.aborted).toBe(true)
+    expect(fetchMock.mock.calls[0]![1]?.signal?.aborted).toBe(true)
   })
 })

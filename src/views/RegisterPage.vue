@@ -7,7 +7,6 @@ import {
   resendVerification,
   verifyRegistration,
   type AuthUser,
-  type RegisterCredentials,
 } from '../services/auth'
 import { useAuth } from '../composables/useAuth'
 

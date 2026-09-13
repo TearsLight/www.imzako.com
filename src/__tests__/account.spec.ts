@@ -4,13 +4,13 @@ import { createMemoryHistory, createRouter } from 'vue-router'
 import AccountPage from '../views/AccountPage.vue'
 import { useAuth } from '../composables/useAuth'
 
-const prepareAvatar = vi.fn()
+const prepareAvatar = vi.fn<(file: File) => Promise<string>>()
 vi.mock('../services/avatar', () => ({
   prepareAvatar: (file: File) => prepareAvatar(file),
   AvatarError: class AvatarError extends Error {},
 }))
 
-const fetchMock = vi.fn()
+const fetchMock = vi.fn<(input: string, options?: RequestInit) => Promise<unknown>>()
 enableAutoUnmount(afterEach)
 beforeEach(() => {
   fetchMock.mockReset()
@@ -40,24 +40,6 @@ async function renderAccount() {
   })
   await router.push('/account')
   return mount(AccountPage, { global: { plugins: [router] } })
-}
-
-function userResponse(overrides: Record<string, unknown> = {}) {
-  return {
-    ok: true,
-    status: 200,
-    json: async () => ({
-      user: {
-        id: 1000001,
-        username: 'cherry',
-        displayName: 'cherry',
-        email: 'lanterns1020@gmail.com',
-        avatar: null,
-        roles: ['USER'],
-      },
-      ...overrides,
-    }),
-  }
 }
 
 /** Several independent forms share this page, so target them by their marker. */
