@@ -67,7 +67,7 @@ ln -s "$APP_DIR/.env" "$build_dir/.env"
 (
     cd "$build_dir"
     npm ci --prefer-offline --no-audit
-    mvn -B verify
+    bash ./mvnw -B verify
 )
 
 built_jar="$build_dir/target/imzako-0.0.1-SNAPSHOT.jar"
