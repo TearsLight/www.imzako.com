@@ -12,6 +12,16 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
+// Node 20.12+ can load the same untracked .env used by Spring Boot. This keeps
+// production Markdown outside the Git worktree while preserving `npm run blog`.
+if (!process.env.BLOG_DIRECTORY && typeof process.loadEnvFile === 'function') {
+  try {
+    process.loadEnvFile('.env')
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error
+  }
+}
+
 const DEFAULT_BLOG_DIRECTORY = 'blog'
 /** Directory names are suggested as tags; keep the list short. */
 const MAX_SUGGESTED_TAGS = 8
@@ -226,9 +236,13 @@ async function main() {
   await mkdir(target.directory, { recursive: true })
   await writeFile(target.filePath, buildContent(title, timestamp, tags), 'utf8')
 
-  const relative = path.relative(process.cwd(), target.filePath).split(path.sep).join('/')
-  const slug = relative.replace(/^blog\//i, '').replace(/\.md$/i, '')
-  console.log(`已创建 ${relative}`)
+  const displayPath = path.relative(process.cwd(), target.filePath).split(path.sep).join('/')
+  const slug = path
+    .relative(blogRoot, target.filePath)
+    .split(path.sep)
+    .join('/')
+    .replace(/\.md$/i, '')
+  console.log(`已创建 ${displayPath}`)
   console.log(`标题: ${title}`)
   console.log(`日期: ${timestamp}`)
   console.log(`标签: ${tags || '(未设置，分类将只取自目录)'}`)

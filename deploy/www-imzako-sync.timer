@@ -1,0 +1,12 @@
+[Unit]
+Description=Check www.imzako.com origin/main every 10 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=10min
+RandomizedDelaySec=30s
+Persistent=true
+Unit=www-imzako-sync.service
+
+[Install]
+WantedBy=timers.target

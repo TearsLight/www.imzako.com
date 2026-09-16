@@ -388,6 +388,13 @@ Maven 在 `generate-resources` 阶段执行 `npm run build`，其中包含 TypeS
 
 ## 打包与部署
 
+仓库使用两条长期分支：
+
+- `dev/test`：日常开发与验证。
+- `main`：生产发布分支。服务器工作区只检出并跟踪 `origin/main`。
+
+发布时先在 `dev/test` 完成测试，再把可发布提交快进合并到 `main`。不要直接在服务器修改受 Git 跟踪的代码。
+
 构建完成后运行：
 
 ```powershell
@@ -407,6 +414,21 @@ java -jar target\imzako-0.0.1-SNAPSHOT.jar
 
 Markdown 文件是运行时内容，不会打包到 JAR。保存文章即可发布，无需重新构建应用。
 
+生产服务器通过 `scripts/sync-main.sh` 检查远程 `main`。脚本在独立临时 worktree 中执行 `npm ci` 与 `mvn verify`，验证成功后才原子替换线上 JAR并重启服务；构建或健康检查失败会保留或恢复上一版本。`www-imzako-sync.timer` 默认每 10 分钟检查一次：
+
+```bash
+systemctl status www-imzako-sync.timer
+systemctl list-timers www-imzako-sync.timer
+
+# 立即检查；main 没有变化时直接退出
+systemctl start www-imzako-sync.service
+
+# 强制重新构建当前 main
+/opt/1panel/www/java/www.imzako.com/scripts/sync-main.sh --force
+```
+
+生产 `.env` 与 Markdown 内容不进入 Git。服务器把 `BLOG_DIRECTORY` 指向工作区外的持久化目录，因此同步 `main` 不会覆盖线上文章；`npm run blog -- -n "文章名称"` 会先从 `.env` 读取这个目录。
+
 ## 项目结构
 
 ```text
@@ -414,6 +436,8 @@ blog/                                  Markdown 文章与本地图片
 docs/frontend-auth.md                  用户、MongoDB、管理员与用户管理说明
 docs/frontend-blog.md                  Markdown 博客、front matter 与实时更新说明
 scripts/new-post.mjs                   新建文章的博客命令
+scripts/sync-main.sh                   定时同步、验证并部署 origin/main
+deploy/                                systemd 同步服务与定时器
 src/components/                        博客列表、主题开关、一言页脚等组件
 src/composables/useAuth.ts             共享登录态、账号名与头像回退
 src/composables/useTheme.ts            白天/夜间主题

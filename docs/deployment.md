@@ -2,6 +2,29 @@
 
 本文档记录把 `www.imzako.com` 部署到生产环境所需要的配置与操作。`.env` 当前已经按生产环境配置好，本地开发请用 `.env.local` 覆盖（见文末）。
 
+## 分支与自动发布
+
+- `dev/test` 用于开发和测试。
+- `main` 是唯一的生产发布分支。
+- 服务器工作区固定为 `main`，不在服务器直接编辑受 Git 跟踪的文件。
+
+服务器的 `www-imzako-sync.timer` 每 10 分钟触发一次 `scripts/sync-main.sh`。脚本先获取 `origin/main`，在独立临时 worktree 中安装前端依赖并执行完整 `mvn verify`；只有构建和测试通过后才原子替换 JAR、重启应用并执行健康检查。失败时线上进程继续使用旧 JAR，或自动回滚到上一 JAR。
+
+```bash
+systemctl status www-imzako-sync.timer
+systemctl list-timers www-imzako-sync.timer
+systemctl start www-imzako-sync.service
+journalctl -u www-imzako-sync.service -n 200 --no-pager
+```
+
+生产 `.env` 保留在工作区但不进入 Git。生产 Markdown 使用工作区外的持久化目录，例如：
+
+```dotenv
+BLOG_DIRECTORY=/opt/1panel/www/java/www.imzako.com-data/blog
+```
+
+`scripts/new-post.mjs` 会读取 `.env`，因此仍可在服务器工作区运行 `npm run blog -- -n "文章名称"`，同步代码时不会覆盖线上文章。
+
 ## 一、构建产物
 
 ```powershell

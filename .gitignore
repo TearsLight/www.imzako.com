@@ -44,6 +44,9 @@ target/
 out/
 *.iml
 .env
+.deployed-main
+target/*.next
+target/*.previous
 
 mvnw
 mvnw.cmd
