@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import BlogFeed from '../components/BlogFeed.vue'
+import { fetchBlogArticle } from '../services/blog'
 
 const fetchMock = vi.fn<(input: string, options?: RequestInit) => Promise<unknown>>()
 const post = (id: number) => ({
@@ -70,6 +71,38 @@ describe('blog preview', () => {
     expect(wrapper.findAll('.post-item')).toHaveLength(1)
     expect(wrapper.find('h1').exists()).toBe(false)
     expect(wrapper.get('#home-blog-heading').element.tagName).toBe('H2')
+  })
+
+  it('prefetches a local article on reader intent and reuses it on entry', async () => {
+    const intentPost = { ...post(1), id: 'intent-prefetch', url: '/blog/posts/intent-prefetch' }
+    fetchMock.mockImplementation(async (input) => {
+      const url = new URL(input)
+      if (url.pathname === '/api/blog/posts') {
+        return { ok: true, json: async () => ({ posts: [intentPost] }) }
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          post: intentPost,
+          markdown: '# Intent\n\nReady.',
+          updatedAt: intentPost.publishedAt,
+        }),
+      }
+    })
+
+    const wrapper = render()
+    await flushPromises()
+    await wrapper.get('.post-link').trigger('pointerenter')
+    await flushPromises()
+
+    expect(
+      fetchMock.mock.calls.filter(([input]) => new URL(input).pathname === '/api/blog/post'),
+    ).toHaveLength(1)
+    expect((await fetchBlogArticle('intent-prefetch')).post.title).toBe(intentPost.title)
+    expect(
+      fetchMock.mock.calls.filter(([input]) => new URL(input).pathname === '/api/blog/post'),
+    ).toHaveLength(1)
   })
 
   it('keeps the blog empty while the backend endpoint is not implemented', async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import { onBeforeUnmount, ref, watch } from 'vue'
 import HitokotoFooter from './components/HitokotoFooter.vue'
 import ThemeToggle from './components/ThemeToggle.vue'
@@ -7,10 +7,22 @@ import { siteLinks, siteName } from './config/sites'
 import { useAuth } from './composables/useAuth'
 
 const { currentUser, greeting, initial, avatar, isAuthenticated, signOut } = useAuth()
+const router = useRouter()
 const main = ref<HTMLElement | null>(null)
 const accountMenu = ref<HTMLElement | null>(null)
 const menuOpen = ref(false)
+const openingArticle = ref(false)
 const year = new Date().getFullYear()
+
+const removeBeforeEach = router.beforeEach((to) => {
+  openingArticle.value = to.name === 'blog-post'
+})
+const removeAfterEach = router.afterEach(() => {
+  openingArticle.value = false
+})
+const removeRouterError = router.onError(() => {
+  openingArticle.value = false
+})
 
 function focusPage() {
   main.value?.focus({ preventScroll: true })
@@ -47,18 +59,27 @@ watch(isAuthenticated, (signedIn) => {
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', onDocumentPointerDown)
   document.removeEventListener('keydown', onDocumentKeydown)
+  removeBeforeEach()
+  removeAfterEach()
+  removeRouterError()
 })
 </script>
 
 <template>
   <a class="skip-link" href="#main-content">跳转到主要内容</a>
+  <Transition name="route-progress">
+    <div v-if="openingArticle" class="route-progress" role="status" aria-live="polite">
+      <span class="visually-hidden">正在打开文章</span>
+      <span class="route-progress-label" aria-hidden="true">正在展开文章</span>
+      <span class="route-progress-line" aria-hidden="true" />
+    </div>
+  </Transition>
   <div class="site-shell">
     <header class="site-header">
       <div class="header-brand">
         <RouterLink class="wordmark" to="/" :aria-label="`${siteName} 首页`">
           <span class="brand-dot">0.o</span>
         </RouterLink>
-
       </div>
       <nav class="navigation" aria-label="主导航">
         <RouterLink to="/" class="nav-link">首页</RouterLink>

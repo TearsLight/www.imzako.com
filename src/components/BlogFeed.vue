@@ -1,8 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { BLOG_PREVIEW_LIMIT, fetchBlogPosts, type BlogPost } from '../services/blog'
+import {
+  BLOG_PREVIEW_LIMIT,
+  fetchBlogPosts,
+  prefetchBlogArticle,
+  type BlogPost,
+} from '../services/blog'
 import { subscribeBlogUpdates } from '../services/blogUpdates'
+import { prefetchBlogPostView } from '../router/blogView'
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
 const section = ref<HTMLElement | null>(null)
@@ -19,6 +25,20 @@ let disposed = false
 let stopUpdates: (() => void) | undefined
 let inFlight = false
 let reloadPending = false
+let viewPreloadTimer: ReturnType<typeof setTimeout> | undefined
+
+function warmArticle(post: BlogPost) {
+  if (!localPath(post.url)) return
+  void Promise.allSettled([prefetchBlogPostView(), prefetchBlogArticle(post.id)])
+}
+
+function scheduleViewPreload() {
+  if (viewPreloadTimer || !posts.value.length) return
+  viewPreloadTimer = setTimeout(() => {
+    viewPreloadTimer = undefined
+    void prefetchBlogPostView().catch(() => {})
+  }, 180)
+}
 
 async function load() {
   if (inFlight) {
@@ -36,6 +56,7 @@ async function load() {
       posts.value = result
       state.value = 'ready'
       syncError.value = false
+      scheduleViewPreload()
     }
   } catch {
     if (!disposed) {
@@ -94,6 +115,7 @@ onBeforeUnmount(() => {
   disposed = true
   observer?.disconnect()
   clearTimeout(timer)
+  clearTimeout(viewPreloadTimer)
   controller?.abort()
   stopUpdates?.()
 })
@@ -154,6 +176,9 @@ onBeforeUnmount(() => {
               :to="localPath(post.url)"
               :href="post.url"
               class="post-link"
+              @pointerenter="warmArticle(post)"
+              @pointerdown="warmArticle(post)"
+              @focus="warmArticle(post)"
             >
               <span class="post-index" aria-hidden="true">{{
                 String(index + 1).padStart(2, '0')

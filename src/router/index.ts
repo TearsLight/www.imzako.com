@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomePage from '../views/HomePage.vue'
+import { loadBlogPostView } from './blogView'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -19,7 +20,7 @@ const router = createRouter({
     {
       path: '/blog/posts/:slug(.*)',
       name: 'blog-post',
-      component: () => import('../views/BlogPostPage.vue'),
+      component: loadBlogPostView,
       meta: { title: '文章' },
     },
     {

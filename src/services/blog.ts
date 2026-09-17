@@ -20,7 +20,11 @@ export interface BlogArticle {
 
 export class BlogNotFoundError extends Error {}
 
-export async function fetchBlogArticle(slug: string, signal?: AbortSignal): Promise<BlogArticle> {
+const ARTICLE_PREFETCH_TTL = 30_000
+const articleCache = new Map<string, { article: BlogArticle; expiresAt: number }>()
+const articlePrefetches = new Map<string, Promise<BlogArticle>>()
+
+async function requestBlogArticle(slug: string, signal?: AbortSignal): Promise<BlogArticle> {
   const endpoint = new URL(
     import.meta.env.VITE_BLOG_POST_URL || '/api/blog/post',
     window.location.origin,
@@ -50,6 +54,78 @@ export async function fetchBlogArticle(slug: string, signal?: AbortSignal): Prom
     updatedAt:
       'updatedAt' in data && typeof data.updatedAt === 'string' ? data.updatedAt : post.publishedAt,
   }
+}
+
+function cachedArticle(slug: string): BlogArticle | undefined {
+  const cached = articleCache.get(slug)
+  if (!cached) return undefined
+  if (cached.expiresAt <= Date.now()) {
+    articleCache.delete(slug)
+    return undefined
+  }
+  return cached.article
+}
+
+function rememberArticle(slug: string, article: BlogArticle): BlogArticle {
+  articleCache.set(slug, { article, expiresAt: Date.now() + ARTICLE_PREFETCH_TTL })
+  return article
+}
+
+function waitForArticle(request: Promise<BlogArticle>, signal?: AbortSignal): Promise<BlogArticle> {
+  if (!signal) return request
+  if (signal.aborted)
+    return Promise.reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+
+  return new Promise((resolve, reject) => {
+    const abort = () => reject(signal.reason ?? new DOMException('Aborted', 'AbortError'))
+    const cleanup = () => signal.removeEventListener('abort', abort)
+    signal.addEventListener('abort', abort, { once: true })
+    request.then(
+      (article) => {
+        cleanup()
+        resolve(article)
+      },
+      (error: unknown) => {
+        cleanup()
+        reject(error)
+      },
+    )
+  })
+}
+
+/** Starts loading an article as soon as a reader shows intent to open it. */
+export function prefetchBlogArticle(slug: string): Promise<BlogArticle> {
+  const cached = cachedArticle(slug)
+  if (cached) return Promise.resolve(cached)
+
+  const pending = articlePrefetches.get(slug)
+  if (pending) return pending
+
+  const request = requestBlogArticle(slug)
+    .then((article) => rememberArticle(slug, article))
+    .finally(() => articlePrefetches.delete(slug))
+  articlePrefetches.set(slug, request)
+  return request
+}
+
+/**
+ * Uses a recent intent preload on first entry. Live-update refreshes pass
+ * `fresh: true`, so edited Markdown is never hidden by this short cache.
+ */
+export async function fetchBlogArticle(
+  slug: string,
+  signal?: AbortSignal,
+  fresh = false,
+): Promise<BlogArticle> {
+  if (fresh) articleCache.delete(slug)
+  if (!fresh) {
+    const cached = cachedArticle(slug)
+    if (cached) return cached
+    const pending = articlePrefetches.get(slug)
+    if (pending) return waitForArticle(pending, signal)
+  }
+
+  return requestBlogArticle(slug, signal)
 }
 
 function normalizePost(value: unknown): BlogPost | null {

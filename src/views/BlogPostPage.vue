@@ -36,7 +36,7 @@ let timer: ReturnType<typeof setTimeout> | undefined
 let disposed = false
 let generation = 0
 
-async function load(reset = false) {
+async function load(reset = false, fresh = false) {
   const current = ++generation
   controller?.abort()
   clearTimeout(timer)
@@ -50,7 +50,7 @@ async function load(reset = false) {
   loading.value = !article.value
   timer = setTimeout(() => request.abort(), 8000)
   try {
-    const result = await fetchBlogArticle(slug.value, request.signal)
+    const result = await fetchBlogArticle(slug.value, request.signal, fresh)
     if (disposed || current !== generation) return
     article.value = result
     notice.value = ''
@@ -72,11 +72,17 @@ async function load(reset = false) {
 watch(slug, () => {
   void load(true)
 })
-onMounted(() => {
-  void load(true)
+
+async function initialize() {
+  await load(true)
+  if (disposed) return
   stopUpdates = subscribeBlogUpdates(() => {
-    void load()
+    void load(false, true)
   })
+}
+
+onMounted(() => {
+  void initialize()
 })
 onBeforeUnmount(() => {
   disposed = true
@@ -89,7 +95,17 @@ onBeforeUnmount(() => {
 <template>
   <div class="article-page">
     <RouterLink class="article-back" to="/blog">← 返回博客</RouterLink>
-    <p v-if="loading" class="article-message" role="status">正在展开这篇文章…</p>
+    <div v-if="loading && !article" class="article-loading" role="status" aria-live="polite">
+      <span class="visually-hidden">正在展开这篇文章…</span>
+      <div class="article-loading-heading" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <div class="article-loading-body" aria-hidden="true">
+        <span v-for="line in 6" :key="line" />
+      </div>
+    </div>
     <div v-if="notice" class="article-notice" role="status">
       <p>{{ notice }}</p>
       <button v-if="!missing" type="button" class="button button-outline" @click="load()">
@@ -144,10 +160,56 @@ onBeforeUnmount(() => {
   font-size: 13px;
   margin-top: 20px;
 }
-.article-message {
-  padding-block: 100px;
-  text-align: center;
-  color: var(--muted);
+.article-loading {
+  padding-block: 44px 80px;
+}
+.article-loading-heading {
+  display: grid;
+  gap: 16px;
+  padding-bottom: 30px;
+  border-bottom: 1px solid var(--line);
+}
+.article-loading-body {
+  display: grid;
+  gap: 18px;
+  padding-top: 36px;
+}
+.article-loading span:not(.visually-hidden) {
+  display: block;
+  height: 13px;
+  border-radius: 999px;
+  background: linear-gradient(
+    100deg,
+    var(--surface-hover) 20%,
+    var(--line) 42%,
+    var(--surface-hover) 64%
+  );
+  background-size: 240% 100%;
+  animation: article-loading 1.25s ease-in-out infinite;
+}
+.article-loading-heading span:first-child {
+  width: 24%;
+  height: 9px;
+}
+.article-loading-heading span:nth-child(2) {
+  width: min(76%, 570px);
+  height: 42px;
+}
+.article-loading-heading span:last-child {
+  width: 34%;
+  height: 10px;
+}
+.article-loading-body span:nth-child(3n + 1) {
+  width: 94%;
+}
+.article-loading-body span:nth-child(3n + 2) {
+  width: 82%;
+}
+.article-loading-body span:nth-child(3n) {
+  width: 68%;
+}
+.article-document {
+  animation: article-arrive 520ms var(--ease) both;
 }
 .article-notice {
   padding: 22px;
@@ -289,12 +351,36 @@ onBeforeUnmount(() => {
 .article-end span {
   color: var(--accent);
 }
+@keyframes article-loading {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+@keyframes article-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 @media (max-width: 700px) {
   .article-page {
     padding-block: 28px 42px;
   }
   .markdown-body {
     font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .article-loading span:not(.visually-hidden),
+  .article-document {
+    animation: none;
   }
 }
 </style>
