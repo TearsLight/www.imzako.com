@@ -9,6 +9,7 @@ JAR_PATH="$APP_DIR/target/imzako-0.0.1-SNAPSHOT.jar"
 LOCK_FILE="${LOCK_FILE:-/run/lock/www-imzako-sync.lock}"
 BUILD_PARENT="${BUILD_PARENT:-/opt/1panel/www/java}"
 FORCE=false
+export HOME="${HOME:-/root}"
 
 load_node_runtime() {
     if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
