@@ -10,6 +10,27 @@ LOCK_FILE="${LOCK_FILE:-/run/lock/www-imzako-sync.lock}"
 BUILD_PARENT="${BUILD_PARENT:-/opt/1panel/www/java}"
 FORCE=false
 
+load_node_runtime() {
+    if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+        return
+    fi
+
+    export NVM_DIR="${NVM_DIR:-/root/.nvm}"
+    if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        # systemd does not load root's interactive shell, so initialize NVM here.
+        set +u
+        # shellcheck source=/dev/null
+        source "$NVM_DIR/nvm.sh"
+        nvm use --silent default >/dev/null
+        set -u
+    fi
+
+    if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
+        echo "缺少 Node.js/npm；请安装项目 engines 支持的 Node.js 版本。" >&2
+        exit 127
+    fi
+}
+
 if [[ "${1:-}" == "--force" ]]; then
     FORCE=true
 elif [[ $# -gt 0 ]]; then
@@ -40,6 +61,8 @@ if [[ ! -f .env ]]; then
     echo "缺少生产环境配置 $APP_DIR/.env。" >&2
     exit 1
 fi
+
+load_node_runtime
 
 git fetch --prune origin main
 remote_sha=$(git rev-parse --verify origin/main)

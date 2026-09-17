@@ -414,7 +414,7 @@ java -jar target\imzako-0.0.1-SNAPSHOT.jar
 
 Markdown 文件是运行时内容，不会打包到 JAR。保存文章即可发布，无需重新构建应用。
 
-生产服务器通过 `scripts/sync-main.sh` 检查远程 `main`。脚本在独立临时 worktree 中执行 `npm ci` 与 `mvn verify`，验证成功后才原子替换线上 JAR并重启服务；构建或健康检查失败会保留或恢复上一版本。`www-imzako-sync.timer` 默认每 10 分钟检查一次：
+生产服务器通过 `scripts/sync-main.sh` 检查远程 `main`。脚本兼容 systemd 环境和 root 的 NVM 默认 Node.js，在独立临时 worktree 中执行 `npm ci` 与 `mvn verify`，验证成功后才原子替换线上 JAR并重启服务；构建或健康检查失败会保留或恢复上一版本。`www-imzako-sync.timer` 默认每 10 分钟检查一次：
 
 ```bash
 systemctl status www-imzako-sync.timer
