@@ -45,6 +45,7 @@ out/
 *.iml
 .env
 .deployed-main
+/.run/bm-ops/
 target/*.next
 target/*.previous
 

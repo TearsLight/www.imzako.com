@@ -462,6 +462,27 @@ vite.config.ts                         Vite 与开发代理
 vitest.config.ts                       前端测试配置
 ```
 
+## BillionMail 验证码邮件
+
+注册和账户验证可通过 BillionMail 的发送 API 投递验证码邮件。生产配置使用 `MAIL_TRANSPORT=billionmail`，发件人为 `noreply@imzako.com`。运行时只需要专用发送密钥：
+
+```dotenv
+MAIL_TRANSPORT=billionmail
+BILLIONMAIL_API_URL=https://webmail.imzako.com
+BILLIONMAIL_API_KEY=<专用发送 API 密钥>
+BILLIONMAIL_TIMEOUT_MS=10000
+SENDER=noreply@imzako.com
+SENDER_NAME=imzako
+```
+
+邮件 HTML 模板位于 `src/main/resources/mail/verification-code.html`，支持 `username`、`code`、`minutes` 和 `site_url` 四个变量。修改模板后，在本地 `.env` 配置管理员 Token，再运行以下命令同步 BillionMail 模板和专用发送 API：
+
+```powershell
+.\scripts\configure-billionmail.ps1
+```
+
+`BILLIONMAIL_API_TOKEN` 仅供该同步脚本调用管理接口，不能提交到 Git，也不应放入生产应用的运行环境。常规测试不会发送真实邮件。
+
 ## 相关文档
 
 - [上线清单](docs/deployment.md)

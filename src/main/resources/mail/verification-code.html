@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>imzako 账户验证码</title>
+  </head>
+  <body style="margin:0;background:#f4f4f4;color:#111;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f4;padding:36px 14px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#fff;border:1px solid #dedede;border-radius:18px;overflow:hidden;">
+            <tr>
+              <td style="background:#111;color:#fff;padding:24px 30px;font-size:18px;font-weight:700;letter-spacing:.06em;">IMZAKO</td>
+            </tr>
+            <tr>
+              <td style="padding:34px 30px 30px;">
+                <p style="margin:0 0 14px;font-size:16px;line-height:1.7;">{{.API.username}}，你好：</p>
+                <p style="margin:0 0 24px;color:#555;font-size:15px;line-height:1.8;">你正在验证 imzako 账户。请在页面中输入以下验证码：</p>
+                <div style="margin:0 0 24px;padding:18px 16px;background:#111;color:#fff;border-radius:12px;text-align:center;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:.24em;">{{.API.code}}</div>
+                <p style="margin:0;color:#666;font-size:14px;line-height:1.8;">验证码将在 <strong style="color:#111;">{{.API.minutes}} 分钟</strong>后失效。若非本人操作，请忽略本邮件，切勿向任何人提供验证码。</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 30px;border-top:1px solid #eee;color:#888;font-size:12px;line-height:1.7;">
+                本邮件由系统自动发送，请勿直接回复。<br>
+                <a href="{{.API.site_url}}" style="color:#111;text-decoration:none;">www.imzako.com</a>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
