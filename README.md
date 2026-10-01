@@ -401,7 +401,7 @@ Maven 在 `generate-resources` 阶段执行 `npm run build`，其中包含 TypeS
 java -jar target\imzako-0.0.1-SNAPSHOT.jar
 ```
 
-运行 JAR 只需要 JDK 21，不需要 Node、Vite 或外部 Tomcat。
+运行 JAR 只需要 JDK 21，不需要 Node、Vite 或外部 Tomcat。生产环境由 1Panel 的 Docker 容器 `imzako` 运行（见下文「部署时需要」）。
 
 部署时需要：
 
@@ -410,11 +410,11 @@ java -jar target\imzako-0.0.1-SNAPSHOT.jar
 3. 将 `COOKIE_SECURE` 设置为 `true`，并使用 HTTPS。
 4. 为 `/api/blog/events` 关闭反向代理缓冲，并让读取超时大于 15 秒。
 5. 保证应用可以连接 MongoDB；生产环境建议使用权限受限的专用数据库账号。
-6. 部署到公网并持续开放注册时，将 `app.email-verification.enabled` 与 `app.captcha.enabled` 设为 `true`，并确认 SMTP 可用；两项功能已实现，只是默认关闭。
+6. 部署到公网并持续开放注册时，将 `app.email-verification.enabled` 与 `app.captcha.enabled` 设为 `true`，并确认邮件发送可用（生产使用 BillionMail 发送 API，见下文）；两项功能已实现，只是默认关闭。
 
 Markdown 文件是运行时内容，不会打包到 JAR。保存文章即可发布，无需重新构建应用。
 
-生产服务器通过 `scripts/sync-main.sh` 检查远程 `main`。脚本兼容 systemd 环境和 root 的 NVM 默认 Node.js，在独立临时 worktree 中执行 `npm ci` 与 `mvn verify`，验证成功后才原子替换线上 JAR并重启服务；构建或健康检查失败会保留或恢复上一版本。`www-imzako-sync.timer` 默认每 10 分钟检查一次：
+生产服务器通过 `scripts/sync-main.sh` 检查远程 `main`。脚本兼容 systemd 环境和 root 的 NVM 默认 Node.js，在独立临时 worktree 中执行 `npm ci` 与 `mvn verify`，验证成功后才原子替换线上 JAR并 `docker restart imzako` 重启 1Panel 容器；构建或健康检查失败会保留或恢复上一版本。`www-imzako-sync.timer` 默认每 10 分钟检查一次：
 
 ```bash
 systemctl status www-imzako-sync.timer

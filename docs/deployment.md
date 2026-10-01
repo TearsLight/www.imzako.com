@@ -8,7 +8,7 @@
 - `main` 是唯一的生产发布分支。
 - 服务器工作区固定为 `main`，不在服务器直接编辑受 Git 跟踪的文件。
 
-服务器的 `www-imzako-sync.timer` 每 10 分钟触发一次 `scripts/sync-main.sh`。脚本先获取 `origin/main`，在独立临时 worktree 中安装前端依赖并执行完整 `mvn verify`；只有构建和测试通过后才原子替换 JAR、重启应用并执行健康检查。失败时线上进程继续使用旧 JAR，或自动回滚到上一 JAR。
+服务器的 `www-imzako-sync.timer` 每 10 分钟触发一次 `scripts/sync-main.sh`。脚本先获取 `origin/main`，在独立临时 worktree 中安装前端依赖并执行完整 `mvn verify`；只有构建和测试通过后才原子替换 JAR、执行 `docker restart imzako` 重启 1Panel 容器并做健康检查。失败时线上进程继续使用旧 JAR，或自动回滚到上一 JAR。
 
 ```bash
 systemctl status www-imzako-sync.timer
@@ -52,7 +52,7 @@ java -jar target\imzako-0.0.1-SNAPSHOT.jar
 | -------- | -------------------------------------------------------------------- |
 | JDK      | 21（`java -version` 必须是 21；本机默认 `java` 可能是 1.8）          |
 | MongoDB  | 可达，且账号有 `imzako` 库的读写权限                                 |
-| SMTP     | `smtp.geeksend.io:587` 出网可达（用于注册邮箱验证码）                |
+| 邮件     | BillionMail 发送 API（`https://webmail.imzako.com`，需 `BILLIONMAIL_API_KEY`）|
 | 目录     | 运行目录下保留外部 `blog/`，或设置 `BLOG_DIRECTORY` 为持久化绝对路径 |
 | 反向代理 | 可选，但 `/api/blog/events` 必须关闭缓冲（见第五节）                 |
 
@@ -74,13 +74,16 @@ JAR 内已包含前端产物、MongoDB 驱动与邮件依赖，运行时不依�
 
 `VITE_` 前缀的变量会被编译进前端产物，**不是运行时配置**。修改后一定要重新构建，否则线上仍是旧值（例如指向 `localhost`）。
 
-## 四、启动
+## 四、运行
 
-```powershell
-java -jar target\imzako-0.0.1-SNAPSHOT.jar
+生产环境由 1Panel 以 Docker 容器 `imzako`（镜像 `1panel/java:21`）运行：容器把工作目录 `/app`（挂载 `/opt/1panel/www/java/www.imzako.com`）里的 JAR 跑起来，并把宿主 `8080` 映射到容器 `8080`，由 openresty 反代 `127.0.0.1:8080`。重启与查看日志：
+
+```bash
+docker restart imzako
+docker logs -f imzako
 ```
 
-正常工作时应看到：
+本地开发仍可直接 `java -jar target\imzako-0.0.1-SNAPSHOT.jar`。正常工作时应看到：
 
 ```text
 MongoDB account schema ready: users, admin_users, sequences, email_verifications

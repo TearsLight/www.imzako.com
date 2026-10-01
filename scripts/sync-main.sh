@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 APP_DIR="${APP_DIR:-/opt/1panel/www/java/www.imzako.com}"
-SERVICE_NAME="${SERVICE_NAME:-www-imzako-com.service}"
+CONTAINER_NAME="${CONTAINER_NAME:-imzako}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8080/api/health}"
 DEPLOYED_FILE="$APP_DIR/.deployed-main"
 JAR_PATH="$APP_DIR/target/imzako-0.0.1-SNAPSHOT.jar"
@@ -113,7 +113,7 @@ mv -f "$next_jar" "$JAR_PATH"
 git reset --hard "$remote_sha"
 git branch --set-upstream-to=origin/main main >/dev/null
 
-if systemctl restart "$SERVICE_NAME"; then
+if docker restart "$CONTAINER_NAME"; then
     healthy=false
     for _ in $(seq 1 40); do
         if curl -fsS --max-time 2 "$HEALTH_URL" >/dev/null 2>&1; then
@@ -132,7 +132,7 @@ if [[ "$healthy" != true ]]; then
         mv -f "$previous_jar" "$JAR_PATH"
     fi
     git reset --hard "$current_sha"
-    systemctl restart "$SERVICE_NAME" || true
+    docker restart "$CONTAINER_NAME" || true
     exit 1
 fi
 
