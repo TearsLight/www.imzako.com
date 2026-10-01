@@ -48,7 +48,7 @@ Spring Boot 4 通过 `spring.mongodb.uri` 使用该连接。`authSource=admin` �
 }
 ```
 
-首个注册用户获得 UID `1000001`，后续注册通过 MongoDB 原子 `findAndModify` 每次加一。在并发注册时不会分配相同 UID。发生重复邮箱等注册失败时，UID 可能出现空号，这是序列分配的正常行为。启用邮箱验证时，SMTP 发送失败会删除刚写入的账号和验证记录，用户可以稍后重新注册。
+首个注册用户获得 UID `1000001`，后续注册通过 MongoDB 原子 `findAndModify` 每次加一。在并发注册时不会分配相同 UID。发生重复邮箱等注册失败时，UID 可能出现空号，这是序列分配的正常行为。启用邮箱验证时，邮件发送失败会删除刚写入的账号和验证记录，用户可以稍后重新注册。
 
 密码不会以明文或可逆密文保存。服务端使用 Spring Security `DelegatingPasswordEncoder`，当前新密码使用带独立随机盐的 bcrypt 哈希，并保留 `{bcrypt}` 前缀，便于以后升级算法。
 
@@ -71,7 +71,7 @@ Spring Boot 4 通过 `spring.mongodb.uri` 使用该连接。`authSource=admin` �
 - `password`：8–128 字符，服务端不会去除首尾字符。
 - `avatar`：可选，`data:image/...` 形式的图片数据 URI，最长 300000 字符。
 
-行为取决于开关 `app.email-verification.enabled`（**当前为 false**）：
+行为取决于开关 `app.email-verification.enabled`（本地默认 false，**生产已设为 true**）：
 
 | 开关    | 响应                                                                                 | 会话           |
 | ------- | ------------------------------------------------------------------------------------ | -------------- |

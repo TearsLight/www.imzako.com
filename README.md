@@ -114,7 +114,7 @@ app.email-verification.enabled=true
 
 打开后行为如下：
 
-- 注册先创建账号并标记为未验证，然后向该邮箱发送 6 位验证码，此时**不建立登录会话**；如果 SMTP 发送失败，则回滚新账号和验证记录，不会留下无法重新注册的孤立账号。
+- 注册先创建账号并标记为未验证，然后向该邮箱发送 6 位验证码，此时**不建立登录会话**；如果邮件发送失败，则回滚新账号和验证记录，不会留下无法重新注册的孤立账号。
 - 未验证邮箱的账号**无法登录**：提交正确的密码会收到 `428 EMAIL_NOT_VERIFIED` 与打码后的邮箱地址，前端据此切换到验证码输入界面。
 - 输入正确验证码后邮箱置为已验证并建立会话；验证码一次性使用，5 次输入失败即作废。
 - `POST /api/auth/register/resend` 可重发，默认 60 秒冷却、每小时最多 5 封；验证码到期时由 MongoDB TTL 索引自动删除。
@@ -122,7 +122,7 @@ app.email-verification.enabled=true
 - 存量账号（无 `emailVerified` 字段）在启动时会被标记为已验证，避免升级后失联。
 - 非 `production` 环境下，验证码会同时写入服务端日志，便于本地联调。
 
-邮件通过 `.env` 中已配置的 SMTP 发送。`.env` 里的 `SMTP_*`、`SENDER`、`SENDER_NAME` 会被映射到 Spring 的 `spring.mail.*` 与 `app.mail.*`。
+生产环境通过 BillionMail 发送 API 投递邮件（`MAIL_TRANSPORT=billionmail`，发件人 `noreply@imzako.com`），SMTP 作为本地回退保留。`.env` 里的 `SMTP_*`、`SENDER`、`SENDER_NAME` 会被映射到 Spring 的 `spring.mail.*` 与 `app.mail.*`。
 
 ### 登录图形验证码（当前关闭）
 
@@ -346,7 +346,8 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 | MongoDB       | `MONGODB_URI`、`MONGODB_DATABASE`、`MONGODB_USERNAME`、`MONGODB_PASSWORD`、`MONGODB_AUTH_SOURCE`、`MONGODB_CONNECT_TIMEOUT_MS`、`MONGODB_SOCKET_TIMEOUT_MS`                                                                                                                                                                                                                                                                               | 用户、管理员与 UID 序列；后端当前使用 `MONGODB_URI`           |
 | 跨域          | `ALLOWED_ORIGINS`、`ALLOWED_METHODS`、`ALLOWED_HEADERS`、`ALLOW_CREDENTIALS`                                                                                                                                                                                                                                                                                                                                                              | 当前启用允许来源与携带凭据；方法和请求头采用后端安全白名单    |
 | 安全预留      | `CSRF_ENABLED`、`PASSWORD_MIN_LENGTH`、`BCRYPT_COST`、`LOGIN_MAX_ATTEMPTS`、`LOGIN_LOCK_SECONDS`、`RATE_LIMIT_ENABLED`、`RATE_LIMIT_WINDOW_SECONDS`、`RATE_LIMIT_MAX_REQUESTS`                                                                                                                                                                                                                                                            | 后续 CSRF、密码策略、登录锁定和限流扩展；尚未全部接入运行逻辑 |
-| SMTP          | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_TLS`、`SMTP_AUTH`、`SMTP_CONNECTION_TIMEOUT_MS`、`SMTP_TIMEOUT_MS`、`SENDER`、`SENDER_NAME`                                                                                                                                                                                                                                                                                     | 已接入邮件发送，映射到 `spring.mail.*` 与 `app.mail.*`        |
+| SMTP          | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_TLS`、`SMTP_AUTH`、`SMTP_CONNECTION_TIMEOUT_MS`、`SMTP_TIMEOUT_MS`、`SENDER`、`SENDER_NAME`                                                                                                                                                                                                                                                                                     | 本地回退，映射到 `spring.mail.*` 与 `app.mail.*` |
+| BillionMail   | `MAIL_TRANSPORT`、`BILLIONMAIL_API_URL`、`BILLIONMAIL_API_KEY`、`BILLIONMAIL_TIMEOUT_MS` | 生产邮件发送 API，发件人 `noreply@imzako.com` |        |
 | 账号门禁      | `app.email-verification.enabled`、`app.captcha.enabled`、`EMAIL_VERIFICATION_TTL_SECONDS`、`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`、`EMAIL_VERIFICATION_MAX_SENDS_PER_HOUR`、`LOGIN_CAPTCHA_THRESHOLD`、`LOGIN_FAILURE_WINDOW_SECONDS`、`LOGIN_FAILURE_MAX_TRACKED_KEYS`、`REGISTRATION_MAX_REQUESTS_PER_HOUR`、`VERIFICATION_RESEND_MAX_REQUESTS_PER_HOUR`、`CAPTCHA_MAX_REQUESTS_PER_MINUTE`、`PUBLIC_RATE_LIMIT_MAX_TRACKED_KEYS` | 邮箱验证、图形验证码和公开接口限流                            |
 | 前端站点      | `VITE_SITE_NAME`、`VITE_PUBLIC_DOMAIN`、`VITE_GIT_URL`、`VITE_BLOG_URL`、`VITE_EXTRA_SITES_JSON`                                                                                                                                                                                                                                                                                                                                          | 品牌、域名和服务导航                                          |
 | 前端接口      | `VITE_LOGIN_ENDPOINT`、`VITE_REGISTER_ENDPOINT`、`VITE_HITOKOTO_API_URL`                                                                                                                                                                                                                                                                                                                                                                  | 登录、注册与一言接口地址                                      |
@@ -450,7 +451,7 @@ src/services/blogUpdates.ts            SSE 实时同步
 src/services/markdown.ts               Markdown 渲染与代码高亮
 src/views/                             Home、Blog、文章详情、Login、Account 等页面
 src/main/java/com/imzako/auth/         MongoDB 用户、管理员、UID、验证码与认证接口
-src/main/java/com/imzako/mail/         SMTP 邮件发送与邮箱验证码
+src/main/java/com/imzako/mail/         BillionMail 邮件发送与邮箱验证码
 src/main/java/com/imzako/blog/         Markdown 扫描、文件监听和博客 API
 src/main/java/com/imzako/web/          页面、健康检查与 CORS 配置
 src/main/resources/application.properties
