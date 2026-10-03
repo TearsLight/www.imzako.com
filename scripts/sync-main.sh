@@ -5,7 +5,7 @@ APP_DIR="${APP_DIR:-/opt/1panel/www/java/www.imzako.com}"
 CONTAINER_NAME="${CONTAINER_NAME:-imzako}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:8080/api/health}"
 DEPLOYED_FILE="$APP_DIR/.deployed-main"
-JAR_PATH="$APP_DIR/target/imzako-0.0.1-SNAPSHOT.jar"
+JAR_PATH="$APP_DIR/target/imzako-0.1.0.jar"
 LOCK_FILE="${LOCK_FILE:-/run/lock/www-imzako-sync.lock}"
 BUILD_PARENT="${BUILD_PARENT:-/opt/1panel/www/java}"
 FORCE=false
@@ -94,15 +94,15 @@ ln -s "$APP_DIR/.env" "$build_dir/.env"
     bash ./mvnw -B verify
 )
 
-built_jar="$build_dir/target/imzako-0.0.1-SNAPSHOT.jar"
+built_jar="$build_dir/target/imzako-0.1.0.jar"
 if [[ ! -s "$built_jar" ]]; then
     echo "构建完成但没有生成可执行 JAR。" >&2
     exit 1
 fi
 
 mkdir -p "$APP_DIR/target"
-previous_jar="$APP_DIR/target/imzako-0.0.1-SNAPSHOT.jar.previous"
-next_jar="$APP_DIR/target/imzako-0.0.1-SNAPSHOT.jar.next"
+previous_jar="$APP_DIR/target/imzako-0.1.0.jar.previous"
+next_jar="$APP_DIR/target/imzako-0.1.0.jar.next"
 
 if [[ -f "$JAR_PATH" ]]; then
     cp -a "$JAR_PATH" "$previous_jar"

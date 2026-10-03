@@ -420,7 +420,7 @@ Maven 在 `generate-resources` 阶段执行 `npm run build`，其中包含 TypeS
 构建完成后运行：
 
 ```powershell
-java -jar target\imzako-0.0.1-SNAPSHOT.jar
+java -jar target\imzako-0.1.0.jar
 ```
 
 `mvn verify` 会先构建并测试 Vue 前端，再把静态产物嵌入 Spring Boot JAR。运行目录只需要该 JAR、同目录 `.env` 和 JDK 21，不需要 Node、Vite 或外部 Tomcat。首次新增博客时会自动创建 `BLOG_DIRECTORY`（默认 `blog/`）。生产环境可由 1Panel 的 Java 21 Docker 容器运行，具体配置见 [上线清单](docs/deployment.md)。

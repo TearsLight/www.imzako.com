@@ -36,14 +36,14 @@ BLOG_DIRECTORY=/opt/1panel/www/java/www.imzako.com-data/blog
 1. `npm run build`（含 `vue-tsc --build` 类型检查与 `vite build`），产物复制到 `target/classes/static`。
 2. `npm run test:unit -- --run`（Vitest 前端单元测试）。
 3. Java 测试。
-4. 打包为 `target/imzako-0.0.1-SNAPSHOT.jar`（自带 Tomcat，无需外置容器）。
+4. 打包为 `target/imzako-0.1.0.jar`（自带 Tomcat，无需外置容器）。
 
 产物自检：
 
 ```powershell
 # 必须存在 Main-Class，说明是 Spring Boot 可执行 jar
 .\mvnw.cmd -o -q help:evaluate -Dexpression=project.build.finalName -DforceStdout
-java -jar target\imzako-0.0.1-SNAPSHOT.jar
+java -jar target\imzako-0.1.0.jar
 ```
 
 ## 二、运行环境要求
@@ -88,7 +88,7 @@ JAR 内已包含前端产物、MongoDB 驱动与邮件依赖，运行时不依�
 | Java / 镜像   | Java 21 / `1panel/java:21`                                                |
 | 代码目录      | 独立目录，内含一个 JAR 和同级 `.env`                                      |
 | 工作目录      | 代码目录在容器内的挂载点，例如 `/app`                                     |
-| 启动命令      | `java -jar /app/imzako-0.0.1-SNAPSHOT.jar`                                |
+| 启动命令      | `java -jar /app/imzako-0.1.0.jar`                                |
 | Web 端口      | 宿主 `127.0.0.1:8080` → 容器 `8080`                                       |
 | RCON 端口     | 宿主 `127.0.0.1:8090` → 容器 `8090`；仅内网联调时才绑定受信任的局域网地址 |
 | 博客目录      | 挂载宿主持久化目录，并让 `BLOG_DIRECTORY` 指向容器内路径                  |
@@ -105,7 +105,7 @@ docker restart imzako
 docker logs -f imzako
 ```
 
-本地开发仍可直接 `java -jar target\imzako-0.0.1-SNAPSHOT.jar`。JAR 与 `.env` 放在同一工作目录启动；正常工作时应看到：
+本地开发仍可直接 `java -jar target\imzako-0.1.0.jar`。JAR 与 `.env` 放在同一工作目录启动；正常工作时应看到：
 
 ```text
 MongoDB account schema ready: users, admin_users, user_bans, sequences, email_verifications

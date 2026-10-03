@@ -11,7 +11,7 @@
     </parent>
     <groupId>com.imzako</groupId>
     <artifactId>imzako</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0</version>
     <name>www.imzako.com</name>
     <description>Spring Boot backend for the existing Vue website</description>
 
