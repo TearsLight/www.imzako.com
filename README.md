@@ -459,6 +459,7 @@ blog/                                  Markdown 文章与本地图片
 docs/frontend-auth.md                  用户、MongoDB、管理员与用户管理说明
 docs/frontend-blog.md                  Markdown 博客、front matter 与实时更新说明
 docs/rcon.md                           8090 RCON 协议、命令与安全部署说明
+docs/env-spec.md                       .env 配置变量、分类与必填规范
 src/main/java/com/imzako/rcon/         8090 RCON 服务与管理命令
 scripts/sync-main.sh                   定时同步、验证并部署 origin/main
 deploy/                                systemd 同步服务与定时器
@@ -481,6 +482,7 @@ src/main/resources/application.properties
 src/test/java/                         Java 单元与 HTTP 集成测试
 .run/                                  IDEA 共享运行配置
 .env                                   本地配置与密钥，不进入 Git
+.env.example                           脱敏配置模板（敏感值以 CHANGE_ME 占位）
 pom.xml                                Java 依赖和前后端联合构建
 vite.config.ts                         Vite 与开发代理
 vitest.config.ts                       前端测试配置
@@ -512,6 +514,7 @@ SENDER_NAME=imzako
 - [上线清单](docs/deployment.md)
 - [Markdown 博客与实时更新](docs/frontend-blog.md)
 - [用户、MongoDB 与管理员账号](docs/frontend-auth.md)
+- [.env 配置设计规范](docs/env-spec.md)
 - [Spring Boot Web](https://docs.spring.io/spring-boot/reference/web/servlet.html)
 - [Spring Boot MongoDB](https://docs.spring.io/spring-boot/4.1-SNAPSHOT/reference/data/nosql.html)
 - [Spring Security 密码存储](https://docs.spring.io/spring-security/reference/features/authentication/password-storage.html)
