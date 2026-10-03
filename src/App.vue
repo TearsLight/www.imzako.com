@@ -147,7 +147,7 @@ onBeforeUnmount(() => {
       </RouterView>
     </main>
     <footer class="site-footer">
-      <span>© {{ year }} Cherry Lanterns</span>
+      <span>© {{ year }} Cherry Lanterns 此项目已在<a href="https://git.imzako.com/cherry/www.imzako.com">Git仓库</a>开源，欢迎提交issue反馈一些Bug</span>
       <HitokotoFooter />
     </footer>
   </div>
