@@ -16,9 +16,7 @@ coverage
 *.local
 
 # Editor directories and files
-.vscode
-.vscode/*
-!.vscode/extensions.json
+.vscode/
 .idea
 *.suo
 *.ntvs*
@@ -52,3 +50,4 @@ target/*.previous
 
 mvnw
 mvnw.cmd
+
