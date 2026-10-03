@@ -21,7 +21,8 @@ Spring Boot 4 通过 `spring.mongodb.uri` 使用该连接。`authSource=admin` �
 | 集合          | 用途                                                        |
 | ------------- | ----------------------------------------------------------- |
 | `users`       | 网站普通用户、资料和密码哈希                                |
-| `admin_users` | 管理员 UID 名单；存在于此集合的 UID 登录后获得 `ADMIN` 身份 |
+| `admin_users` | UID 权限等级：1 普通用户、2 管理员、3 服主                    |
+| `user_bans`   | 临时封禁的到期时间、理由和操作者                              |
 | `sequences`   | UID 原子递增计数器，初始值 `1000000`                        |
 
 `users` 只对 `uid`、`emailKey` 建立唯一索引。`usernameKey` 仍然写入，但**没有唯一索引**，因为用户名只是展示标签、允许重复；旧版本遗留的 `username_unique` 索引会在启动时自动删除。邮箱会生成小写规范化检索键，因此大小写变化不能重复注册。`email_verifications.expiresAt` 使用 MongoDB TTL 索引，到期记录由数据库自动清理。
@@ -114,12 +115,15 @@ Spring Boot 4 通过 `spring.mongodb.uri` 使用该连接。`authSource=admin` �
     "displayName": "member",
     "email": "member@example.com",
     "avatar": "data:image/jpeg;base64,...",
-    "roles": ["USER"]
+    "roles": ["USER"],
+    "permissionLevel": 1,
+    "bannedUntil": null,
+    "banReason": null
   }
 }
 ```
 
-`avatar` 未设置时为 `null`。
+`avatar` 未设置时为 `null`。`permissionLevel` 始终为 1、2 或 3；账号未封禁时 `bannedUntil` 和 `banReason` 为 `null`。权限或封禁经 RCON 修改后，`GET /api/auth/me` 会从数据库刷新公开会话视图，不要求重新登录。
 
 其他会话接口：
 
@@ -164,20 +168,27 @@ Spring Boot 4 通过 `spring.mongodb.uri` 使用该连接。`authSource=admin` �
 
 Cookie 名、路径、HttpOnly、Secure、SameSite 和会话有效期使用 `.env` 的 `COOKIE_*`、`SESSION_TTL_SECONDS` 配置。当前允许的跨域来源来自逗号分隔的 `ALLOWED_ORIGINS`；认证请求允许携带 Cookie，并允许 `PUT` 方法。
 
-## 管理员
+## 权限与封禁
 
-公开注册只创建普通用户，不提供公开的管理员注册接口。要授予管理员身份，在确认目标用户 UID 后，由数据库管理员向 `imzako.admin_users` 插入该 UID：
+公开注册只创建等级 1 普通用户。权限和封禁通过认证后的 8090 RCON 管理：
 
-```javascript
-use imzako
-db.admin_users.insertOne({
-  _id: NumberLong("1000001"),
-  grantedAt: new Date(),
-  grantedBy: "manual"
-})
+```text
+op 1000001 2
+op 1000001 3
+ban 1000002 24 "刷屏"
+pardon 1000002
+user 1000002
 ```
 
-该用户下一次登录时响应中的角色为 `["USER", "ADMIN"]`，登录成功页面也会显示“管理员账户”。删除对应 `admin_users` 文档即可撤销身份，账号本身仍保留在 `users` 中。
+| 等级 | 角色                         | 当前能力                                      |
+| ---- | ---------------------------- | --------------------------------------------- |
+| 1    | `USER`                       | 普通登录用户                                  |
+| 2    | `USER`、`ADMIN`              | 管理员身份；预留给后续管理功能                |
+| 3    | `USER`、`ADMIN`、`OWNER`     | 读取博客管理数据，并新增、修改和删除博客      |
+
+权限会写入兼容旧版本的 `admin_users` 集合；没有记录时按等级 1，旧版没有 `level` 字段的记录按等级 2。封禁写入 `user_bans`，用户响应会额外带 `BANNED` 角色、到期时间和理由。封禁期间公开内容与等级 3 博客管理列表仍可读，但博客新增、修改和删除会返回 403；未来聊天室、留言板和评论区实现写接口时必须调用同一 `requireWritablePermission` 检查。MongoDB TTL 索引会最终清理过期记录，应用本身也按当前时间判断封禁是否有效，因此不依赖 TTL 清理的即时性。
+
+RCON 是独立的受令牌保护管理面，不是 HTTP API。完整命令、认证方式和 Docker 端口绑定见 [RCON 管理文档](rcon.md)。
 
 ## 状态码
 
@@ -185,6 +196,7 @@ db.admin_users.insertOne({
 | ---- | -------------------------------------- |
 | 400  | 请求字段无效                           |
 | 401  | 未登录或账号密码错误                   |
-| 409  | 用户名或邮箱已经存在                   |
+| 403  | 权限不足，或封禁期间尝试受保护的写操作 |
+| 409  | 邮箱已经存在                           |
 | 429  | 公开注册、重发或验证码图片请求过于频繁 |
 | 503  | MongoDB 暂时不可用                     |

@@ -1,6 +1,7 @@
 ﻿export const siteLinks = {
   git: publicUrl(import.meta.env.VITE_GIT_URL, 'https://git.imzako.com'),
   blog: publicUrl(import.meta.env.VITE_BLOG_URL, 'http://localhost:8080/blog'),
+  mail: publicUrl(import.meta.env.VITE_MAIL_URL, 'https://mail.imzako.com'),
 } as const
 
 export type SiteEntry = {
@@ -10,7 +11,7 @@ export type SiteEntry = {
   description: string
   address?: string
   href?: string
-  icon: 'git' | 'blog' | 'plus'
+  icon: 'git' | 'blog' | 'mail' | 'plus'
 }
 
 type ExtraSite = Pick<SiteEntry, 'name' | 'label' | 'description' | 'address'> & {
@@ -90,6 +91,15 @@ export const sites: SiteEntry[] = [
     address: displayAddress(siteLinks.blog),
     href: siteLinks.blog,
     icon: 'blog',
+  },
+  {
+    id: 'mail',
+    name: '邮箱',
+    label: 'MAIL & CONTACT',
+    description: '网页邮箱',
+    address: displayAddress(siteLinks.mail),
+    href: siteLinks.mail,
+    icon: 'mail',
   },
   ...configuredSites,
   {

@@ -22,8 +22,8 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    private static final String SESSION_USER = "authenticatedUser";
-    private static final String SESSION_VERSION = "authenticatedUserVersion";
+    static final String SESSION_USER = "authenticatedUser";
+    static final String SESSION_VERSION = "authenticatedUserVersion";
 
     private final AuthService auth;
     private final CaptchaService captchas;
@@ -217,7 +217,11 @@ public class AuthController {
             if (session != null) session.invalidate();
             throw new NotAuthenticatedException();
         }
-        return view;
+        // Permission and ban changes are made out-of-band through RCON. Refresh the
+        // public session view so the browser sees them without requiring a new login.
+        UserView fresh = UserView.from(auth.profile(view.id()));
+        session.setAttribute(SESSION_USER, fresh);
+        return fresh;
     }
 
     private void establishSession(HttpServletRequest request, AuthService.AuthenticatedUser user) {
@@ -314,11 +318,15 @@ public class AuthController {
             String displayName,
             String email,
             String avatar,
-            List<String> roles
+            List<String> roles,
+            int permissionLevel,
+            java.time.Instant bannedUntil,
+            String banReason
     ) implements java.io.Serializable {
         static UserView from(AuthService.AuthenticatedUser user) {
             return new UserView(
-                    user.uid(), user.username(), user.username(), user.email(), user.avatar(), user.roles());
+                    user.uid(), user.username(), user.username(), user.email(), user.avatar(), user.roles(),
+                    user.permissionLevel(), user.bannedUntil(), user.banReason());
         }
     }
 

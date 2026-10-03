@@ -104,6 +104,31 @@ class MarkdownBlogTest {
     }
 
     @Test
+    void createsUpdatesAndDeletesPostsWithoutNode() throws Exception {
+        try (var blog = runningBlog()) {
+            var created = blog.createPost("新的博客", "Java 后端", true, "notes");
+            assertThat(created.slug()).isEqualTo("notes/新的博客");
+            assertThat(created.draft()).isTrue();
+            Path file = directory.resolve("notes/新的博客.md");
+            assertThat(file).content().contains(
+                    "title: 新的博客",
+                    "date: ",
+                    "tags: Java 后端",
+                    "draft: true");
+            assertThat(blog.posts(10)).isEmpty();
+            assertThat(blog.managedArticle(created.slug()).markdown()).contains("# 新的博客");
+
+            blog.updatePost(created.slug(), "已经发布", "Java", false, "# 已经发布\n\n正文");
+            await(() -> blog.article(created.slug()).isPresent());
+            assertThat(blog.article(created.slug()).orElseThrow().post().title()).isEqualTo("已经发布");
+            assertThat(blog.posts(10, "正文")).hasSize(1);
+
+            blog.deletePost(created.slug());
+            assertThat(file).doesNotExist();
+        }
+    }
+
+    @Test
     void frontMatterTagsMergeWithTheContentDirectory() throws Exception {
         Path folder = Files.createDirectory(directory.resolve("notes"));
         Files.writeString(folder.resolve("merge.md"), """
@@ -186,6 +211,7 @@ class MarkdownBlogTest {
         assertThat(MarkdownBlog.categories(java.util.List.of(), "notes/deep/post.md"))
                 .containsExactly("notes");
         assertThat(MarkdownBlog.categories(java.util.List.of(), "root.md")).containsExactly("随笔");
+        assertThat(MarkdownBlog.parseDate("2026-10-02 23-08")).isNotNull();
     }
 
     @Test

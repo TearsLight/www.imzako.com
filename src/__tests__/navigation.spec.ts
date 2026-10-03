@@ -25,7 +25,7 @@ describe('page navigation', () => {
     await router.isReady()
     const wrapper = mount(App, { global: { plugins: [router] } })
 
-    expect(wrapper.get('h1').text()).toContain('Connect To')
+    expect(wrapper.get('h1').text().trim()).not.toBe('')
     expect(wrapper.get(`a.service-card[href="${gitUrl}"]`).attributes('href')).toBe(gitUrl)
     expect(wrapper.find(`.service-card[href="${blogUrl}"]`).exists()).toBe(true)
     expect(wrapper.get('.service-card-placeholder').element.tagName).toBe('ARTICLE')

@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import {
   BLOG_PREVIEW_LIMIT,
+  BLOG_SEARCH_LIMIT,
   fetchBlogPosts,
   prefetchBlogArticle,
   type BlogPost,
@@ -10,13 +11,25 @@ import {
 import { subscribeBlogUpdates } from '../services/blogUpdates'
 import { prefetchBlogPostView } from '../router/blogView'
 
-const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false })
+const props = withDefaults(defineProps<{ embedded?: boolean; searchable?: boolean }>(), {
+  embedded: false,
+  searchable: false,
+})
 const section = ref<HTMLElement | null>(null)
 const visible = ref(false)
 const state = ref<'idle' | 'loading' | 'ready' | 'error'>('idle')
 const posts = ref<BlogPost[]>([])
+const searchQuery = ref('')
 const syncError = ref(false)
-const visiblePosts = computed(() => posts.value.slice(0, BLOG_PREVIEW_LIMIT))
+const visiblePosts = computed(() => {
+  const needle = searchQuery.value.trim().toLocaleLowerCase()
+  const filtered = needle
+    ? posts.value.filter((post) =>
+        `${post.title} ${post.excerpt} ${post.category}`.toLocaleLowerCase().includes(needle),
+      )
+    : posts.value
+  return filtered.slice(0, props.searchable ? BLOG_SEARCH_LIMIT : BLOG_PREVIEW_LIMIT)
+})
 const sectionId = computed(() => (props.embedded ? 'home-blog' : 'blog-feed'))
 let observer: IntersectionObserver | undefined
 let controller: AbortController | undefined
@@ -51,7 +64,10 @@ async function load() {
   controller = new AbortController()
   timer = setTimeout(() => controller?.abort(), 8000)
   try {
-    const result = await fetchBlogPosts(controller.signal)
+    const result = await fetchBlogPosts(
+      controller.signal,
+      props.searchable ? BLOG_SEARCH_LIMIT : BLOG_PREVIEW_LIMIT,
+    )
     if (!disposed) {
       posts.value = result
       state.value = 'ready'
@@ -146,6 +162,15 @@ onBeforeUnmount(() => {
     </header>
 
     <div class="feed-content" :aria-busy="state === 'loading'">
+      <label v-if="searchable" class="blog-search">
+        <span>搜索博客</span>
+        <input
+          v-model="searchQuery"
+          type="search"
+          placeholder="输入标题、摘要或分类"
+          autocomplete="off"
+        />
+      </label>
       <p v-if="syncError" class="feed-sync-notice" role="status">
         最新内容暂时无法同步。<button type="button" @click="load">重新同步 ↻</button>
       </p>
@@ -285,6 +310,30 @@ onBeforeUnmount(() => {
 }
 .feed-content {
   min-height: 340px;
+}
+.blog-search {
+  display: grid;
+  grid-template-columns: auto minmax(220px, 420px);
+  align-items: center;
+  justify-content: end;
+  gap: 14px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 13px;
+}
+.blog-search input {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+}
+.blog-search input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .feed-sync-notice {
   padding-block: 16px;
@@ -493,6 +542,11 @@ onBeforeUnmount(() => {
     flex-direction: column;
     align-items: flex-end;
     gap: 6px;
+  }
+  .blog-search {
+    grid-template-columns: 1fr;
+    justify-content: stretch;
+    gap: 8px;
   }
   .post-link {
     grid-template-columns: minmax(0, 1fr) 30px;

@@ -18,8 +18,8 @@ function scrollToBlog() {
           <span class="small-cross" aria-hidden="true">✳</span>
           PERSONAL PORTAL
         </p>
-        <h1 id="home-heading">Connect To</h1>
-        <p class="portal-description">The Truth</p>
+        <h1 id="home-heading">None</h1>
+        <p class="portal-description">None</p>
       </div>
       <div class="portal-signature" aria-hidden="true">
         <span>Hello World!<span class="brand-dot">.</span></span
@@ -73,6 +73,16 @@ function scrollToBlog() {
               >
                 <rect x="6" y="4" width="20" height="24" rx="3" />
                 <path d="M12 11h8m-8 5h8m-8 5h5" />
+              </svg>
+              <svg
+                v-else-if="site.icon === 'mail'"
+                viewBox="0 0 32 32"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+              >
+                <rect x="4" y="7" width="24" height="18" rx="3" />
+                <path d="m6 10 10 8 10-8" />
               </svg>
               <svg v-else viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M16 7v18M7 16h18" />

@@ -32,8 +32,10 @@ public class BlogController {
     }
 
     @GetMapping("/posts")
-    public ResponseEntity<?> posts(@RequestParam(defaultValue = "10") int limit) {
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(Map.of("posts", blog.posts(limit), "revision", blog.revision()));
+    public ResponseEntity<?> posts(@RequestParam(defaultValue = "10") int limit,
+                                   @RequestParam(required = false) String q) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(Map.of("posts", blog.posts(limit, q), "revision", blog.revision()));
     }
 
     @GetMapping("/post")

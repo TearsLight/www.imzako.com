@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.text.Normalizer;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -339,14 +340,28 @@ public class AuthService {
     }
 
     private AuthenticatedUser view(UserAccount account) {
-        boolean admin = mongo.exists(Query.query(where("_id").is(account.uid())), AdminUser.class);
+        boolean hasPermissionRecord = mongo.exists(Query.query(where("_id").is(account.uid())), AdminUser.class);
+        AdminUser permission = hasPermissionRecord ? mongo.findById(account.uid(), AdminUser.class) : null;
+        int permissionLevel = hasPermissionRecord && permission == null
+                ? UserAccessService.ADMIN
+                : UserAccessService.normalizeLevel(permission);
+        UserBan ban = mongo.findById(account.uid(), UserBan.class);
+        if (ban != null && !ban.activeAt(Instant.now())) ban = null;
+        var roles = new ArrayList<String>();
+        roles.add("USER");
+        if (permissionLevel >= UserAccessService.ADMIN) roles.add("ADMIN");
+        if (permissionLevel >= UserAccessService.OWNER) roles.add("OWNER");
+        if (ban != null) roles.add("BANNED");
         return new AuthenticatedUser(
                 account.uid(),
                 account.email(),
                 account.username(),
                 account.avatar(),
                 account.sessionVersion(),
-                admin ? List.of("USER", "ADMIN") : List.of("USER")
+                List.copyOf(roles),
+                permissionLevel,
+                ban == null ? null : ban.bannedUntil(),
+                ban == null ? null : ban.reason()
         );
     }
 
@@ -392,7 +407,10 @@ public class AuthService {
             String username,
             String avatar,
             long sessionVersion,
-            List<String> roles
+            List<String> roles,
+            int permissionLevel,
+            Instant bannedUntil,
+            String banReason
     ) {}
 
     public record EmailChange(AuthenticatedUser user, String maskedEmail) {}

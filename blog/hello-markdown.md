@@ -10,10 +10,10 @@ tags: 随笔 Markdown 指南
 
 ## 写下你的第一篇文章
 
-在根目录的 `blog/` 下新建一个 `.md` 文件，也可以用命令行生成：
+在根目录的 `blog/` 下新建一个 `.md` 文件，也可以用 `imzako new` 命令生成：
 
-```powershell
-npm run blog -- -n "文章名称" -t "技术 笔记"
+```text
+imzako new "文章名称" --tags "技术 笔记"
 ```
 
 文件开头的 front-matter 决定标题、日期和分类：

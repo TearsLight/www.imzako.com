@@ -11,10 +11,13 @@ import org.springframework.web.util.UriUtils;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.text.Normalizer;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.regex.Pattern;
@@ -28,10 +31,14 @@ public class MarkdownBlog implements AutoCloseable {
     public record Post(String id, String title, String excerpt, String url, String publishedAt,
                        String category, List<String> categories) {}
     public record Article(Post post, String markdown, String updatedAt) {}
+    public record ManagedArticle(String slug, String title, String date, List<String> tags,
+                                 boolean draft, String markdown, String updatedAt) {}
+    public record CreatedPost(String slug, String title, boolean draft, String path) {}
     private static final Logger log = LoggerFactory.getLogger(MarkdownBlog.class);
     private static final Pattern TITLE = Pattern.compile("(?m)^#\\s+(.+?)\\s*#*\\s*$");
     /** YAML-style front matter delimited by --- lines at the very start of the file. */
     private static final Pattern FRONT_MATTER = Pattern.compile("\\A\\uFEFF?---\\s*\\r?\\n(.*?)\\r?\\n---[ \\t]*(?:\\r?\\n|\\z)", Pattern.DOTALL);
+    private static final DateTimeFormatter COMMAND_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH-mm");
     private static final String DEFAULT_CATEGORY = "随笔";
     private final Path root;
     private final Map<WatchKey, Path> watched = new HashMap<>();
@@ -65,11 +72,74 @@ public class MarkdownBlog implements AutoCloseable {
         return () -> listeners.remove(listener);
     }
     public List<Post> posts(int limit) {
+        return posts(Math.min(limit, 10), null);
+    }
+
+    public List<Post> posts(int limit, String query) {
+        String needle = query == null ? "" : query.strip().toLowerCase(Locale.ROOT);
         return articles.values().stream().map(Article::post)
+                .filter(post -> needle.isEmpty() || searchable(post).contains(needle))
                 .sorted(Comparator.comparing((Post post) -> Instant.parse(post.publishedAt())).reversed().thenComparing(Post::id))
-                .limit(Math.max(0, Math.min(limit, 10))).toList();
+                .limit(Math.max(0, Math.min(limit, 200))).toList();
     }
     public Optional<Article> article(String slug) { return Optional.ofNullable(articles.get(slug)); }
+
+    /** Creates a Markdown draft without Node/npm; used by both RCON and the owner API. */
+    public synchronized CreatedPost createPost(String requestedTitle, String requestedTags,
+                                               boolean draft, String requestedDirectory) throws IOException {
+        String title = oneLine(requestedTitle, "博客标题");
+        List<String> tags = splitTags(requestedTags);
+        Path directory = safeDirectory(requestedDirectory);
+        Files.createDirectories(directory);
+        rejectSymbolicComponents(directory);
+
+        String base = fileName(title);
+        Path target = directory.resolve(base + ".md");
+        int suffix = 2;
+        while (Files.exists(target, LinkOption.NOFOLLOW_LINKS)) {
+            target = directory.resolve(base + "-" + suffix++ + ".md");
+        }
+        String date = LocalDateTime.now().format(COMMAND_DATE);
+        writePost(target, title, date, tags, draft, "# " + title + "\n\n");
+        return new CreatedPost(slug(target), title, draft, root.relativize(target).toString().replace('\\', '/'));
+    }
+
+    public synchronized ManagedArticle managedArticle(String requestedSlug) throws IOException {
+        Path path = safePost(requestedSlug, true);
+        return readManaged(path);
+    }
+
+    public synchronized List<ManagedArticle> managedPosts() throws IOException {
+        if (!Files.isDirectory(root, LinkOption.NOFOLLOW_LINKS)) return List.of();
+        var result = new ArrayList<ManagedArticle>();
+        try (var paths = Files.walk(root)) {
+            for (Path path : paths.filter(candidate -> Files.isRegularFile(candidate, LinkOption.NOFOLLOW_LINKS)
+                    && candidate.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".md")).toList()) {
+                if (!Files.isSymbolicLink(path) && Files.size(path) <= 1_048_576) result.add(readManaged(path));
+            }
+        }
+        result.sort(Comparator.comparing(ManagedArticle::date, Comparator.nullsLast(Comparator.reverseOrder())));
+        return List.copyOf(result);
+    }
+
+    public synchronized ManagedArticle updatePost(String requestedSlug, String requestedTitle,
+                                                   String requestedTags, boolean draft,
+                                                   String markdown) throws IOException {
+        Path path = safePost(requestedSlug, true);
+        ManagedArticle existing = readManaged(path);
+        String title = oneLine(requestedTitle, "博客标题");
+        if (markdown == null || markdown.length() > 1_000_000) {
+            throw new IllegalArgumentException("博客正文不能超过 1000000 个字符");
+        }
+        String date = existing.date() == null || existing.date().isBlank()
+                ? LocalDateTime.now().format(COMMAND_DATE) : existing.date();
+        writePost(path, title, date, splitTags(requestedTags), draft, markdown);
+        return readManaged(path);
+    }
+
+    public synchronized void deletePost(String requestedSlug) throws IOException {
+        Files.delete(safePost(requestedSlug, true));
+    }
 
     // Asset requests resolve inside the blog root, including every real path component.
     public Path asset(String relative) throws IOException {
@@ -77,6 +147,99 @@ public class MarkdownBlog implements AutoCloseable {
         if (!path.startsWith(root) || !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)
                 || !path.toRealPath().startsWith(root.toRealPath())) throw new NoSuchFileException(relative);
         return path;
+    }
+
+    private static String searchable(Post post) {
+        return (post.title() + " " + post.excerpt() + " " + post.category())
+                .toLowerCase(Locale.ROOT);
+    }
+
+    private Path safeDirectory(String requested) throws IOException {
+        String value = requested == null ? "" : requested.strip().replace('\\', '/');
+        while (value.startsWith("/")) value = value.substring(1);
+        if (value.equals("blog")) value = "";
+        else if (value.startsWith("blog/")) value = value.substring(5);
+        Path directory = root.resolve(value).normalize();
+        if (!directory.startsWith(root)) throw new IllegalArgumentException("博客目录必须位于 BLOG_DIRECTORY 内");
+        return directory;
+    }
+
+    private Path safePost(String requestedSlug, boolean mustExist) throws IOException {
+        String value = requestedSlug == null ? "" : requestedSlug.strip().replace('\\', '/');
+        if (value.toLowerCase(Locale.ROOT).endsWith(".md")) value = value.substring(0, value.length() - 3);
+        if (value.isEmpty() || value.startsWith("/") || value.contains("\0")) {
+            throw new IllegalArgumentException("博客 slug 无效");
+        }
+        Path path = root.resolve(value + ".md").normalize();
+        if (!path.startsWith(root)) throw new IllegalArgumentException("博客 slug 无效");
+        if (mustExist && !Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) throw new NoSuchFileException(value);
+        rejectSymbolicComponents(path.getParent());
+        if (Files.isSymbolicLink(path)) throw new IOException("博客文件不能是符号链接");
+        return path;
+    }
+
+    private void rejectSymbolicComponents(Path path) throws IOException {
+        Path current = root;
+        Path relative = root.relativize(path.normalize());
+        for (Path part : relative) {
+            current = current.resolve(part);
+            if (Files.isSymbolicLink(current)) throw new IOException("博客目录不能包含符号链接");
+        }
+    }
+
+    private ManagedArticle readManaged(Path path) throws IOException {
+        if (Files.size(path) > 1_048_576) throw new IOException("博客文件超过 1 MiB");
+        String raw = Files.readString(path, StandardCharsets.UTF_8).replaceFirst("^\\uFEFF", "");
+        FrontMatter front = parseFrontMatter(raw);
+        String body = stripFrontMatter(raw);
+        String title = front.title() == null ? headingOrFileName(body, path) : front.title();
+        return new ManagedArticle(slug(path), title, front.date(), front.tags(), front.draft(), body,
+                Files.getLastModifiedTime(path).toInstant().toString());
+    }
+
+    private void writePost(Path target, String title, String date, List<String> tags,
+                           boolean draft, String markdown) throws IOException {
+        String content = "---\n"
+                + "title: " + title + "\n"
+                + "date: " + date + "\n"
+                + "tags: " + String.join(" ", tags) + "\n"
+                + "draft: " + draft + "\n"
+                + "---\n\n"
+                + (markdown == null ? "" : markdown.stripLeading());
+        if (!content.endsWith("\n")) content += "\n";
+        Path temporary = Files.createTempFile(target.getParent(), ".imzako-post-", ".tmp");
+        try {
+            Files.writeString(temporary, content, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING);
+            try {
+                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException unsupported) {
+                Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
+    }
+
+    private String slug(Path path) {
+        String relative = root.relativize(path).toString().replace('\\', '/');
+        return relative.substring(0, relative.length() - 3);
+    }
+
+    private static String fileName(String title) {
+        String slug = Normalizer.normalize(title, Normalizer.Form.NFKC)
+                .toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]+", "-")
+                .replaceAll("^-+|-+$", "")
+                .replaceAll("-{2,}", "-");
+        return slug.isBlank() ? "post" : slug;
+    }
+
+    private static String oneLine(String value, String label) {
+        String normalized = value == null ? "" : value.replaceAll("[\\r\\n]+", " ").strip();
+        if (normalized.isEmpty() || normalized.length() > 200) {
+            throw new IllegalArgumentException(label + "长度必须在 1 到 200 个字符之间");
+        }
+        return normalized;
     }
 
     private void tick() {
@@ -221,9 +384,14 @@ public class MarkdownBlog implements AutoCloseable {
                 return LocalDateTime.parse(candidate).toInstant(ZoneOffset.UTC).toString();
             } catch (RuntimeException notALocalDateTime) {
                 try {
+                    return LocalDateTime.parse(value.trim(), COMMAND_DATE)
+                            .atZone(ZoneId.systemDefault()).toInstant().toString();
+                } catch (RuntimeException notACommandDate) {
+                    try {
                     return LocalDate.parse(candidate).atStartOfDay(ZoneOffset.UTC).toInstant().toString();
-                } catch (RuntimeException notADate) {
-                    return null;
+                    } catch (RuntimeException notADate) {
+                        return null;
+                    }
                 }
             }
         }

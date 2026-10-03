@@ -1,4 +1,5 @@
 export const BLOG_PREVIEW_LIMIT = 10
+export const BLOG_SEARCH_LIMIT = 200
 
 export interface BlogPost {
   id: string
@@ -18,7 +19,82 @@ export interface BlogArticle {
   updatedAt: string
 }
 
+export interface ManagedBlogArticle {
+  slug: string
+  title: string
+  date: string
+  tags: string[]
+  draft: boolean
+  markdown: string
+  updatedAt: string
+}
+
+export interface CreateBlogPost {
+  title: string
+  tags: string
+  draft: boolean
+  directory: string
+}
+
+export interface UpdateBlogPost {
+  slug: string
+  title: string
+  tags: string
+  draft: boolean
+  markdown: string
+}
+
 export class BlogNotFoundError extends Error {}
+
+async function managementRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, {
+    credentials: 'same-origin',
+    cache: 'no-store',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...init?.headers },
+    ...init,
+  })
+  if (!response.ok) {
+    let message = '博客管理操作失败。'
+    try {
+      const body = (await response.json()) as { message?: unknown; detail?: unknown }
+      if (typeof body.message === 'string') message = body.message
+      else if (typeof body.detail === 'string') message = body.detail
+    } catch {
+      // The status-specific fallback is enough when the response has no JSON body.
+    }
+    throw new Error(message)
+  }
+  if (response.status === 204) return undefined as T
+  return (await response.json()) as T
+}
+
+export function fetchManagedBlogPosts(): Promise<ManagedBlogArticle[]> {
+  return managementRequest('/api/blog/manage/posts')
+}
+
+export function fetchManagedBlogPost(slug: string): Promise<ManagedBlogArticle> {
+  return managementRequest(`/api/blog/manage/post?slug=${encodeURIComponent(slug)}`)
+}
+
+export function createBlogPost(post: CreateBlogPost): Promise<{ slug: string }> {
+  return managementRequest('/api/blog/manage/posts', {
+    method: 'POST',
+    body: JSON.stringify(post),
+  })
+}
+
+export function updateBlogPost(post: UpdateBlogPost): Promise<ManagedBlogArticle> {
+  return managementRequest('/api/blog/manage/post', {
+    method: 'PUT',
+    body: JSON.stringify(post),
+  })
+}
+
+export function deleteBlogPost(slug: string): Promise<void> {
+  return managementRequest(`/api/blog/manage/post?slug=${encodeURIComponent(slug)}`, {
+    method: 'DELETE',
+  })
+}
 
 const ARTICLE_PREFETCH_TTL = 30_000
 const articleCache = new Map<string, { article: BlogArticle; expiresAt: number }>()
@@ -165,12 +241,16 @@ function normalizePost(value: unknown): BlogPost | null {
 }
 
 // The file-backed API returns the most recently updated posts first.
-export async function fetchBlogPosts(signal?: AbortSignal): Promise<BlogPost[]> {
+export async function fetchBlogPosts(
+  signal?: AbortSignal,
+  limit = BLOG_PREVIEW_LIMIT,
+): Promise<BlogPost[]> {
   const endpoint = new URL(
     import.meta.env.VITE_BLOG_API_URL || '/api/blog/posts',
     window.location.origin,
   )
-  endpoint.searchParams.set('limit', String(BLOG_PREVIEW_LIMIT))
+  const safeLimit = Math.max(1, Math.min(Math.trunc(limit), BLOG_SEARCH_LIMIT))
+  endpoint.searchParams.set('limit', String(safeLimit))
   const response = await fetch(endpoint.href, {
     signal,
     cache: 'no-store',
@@ -185,7 +265,7 @@ export async function fetchBlogPosts(signal?: AbortSignal): Promise<BlogPost[]> 
   }
   const seen = new Set<string>()
   return data.posts
-    .slice(0, BLOG_PREVIEW_LIMIT)
+    .slice(0, safeLimit)
     .map(normalizePost)
     .filter((post): post is BlogPost => {
       if (!post || seen.has(post.id)) return false

@@ -32,6 +32,7 @@ public class MongoSchemaInitializer {
     void initialize() {
         ensureCollection("users");
         ensureCollection("admin_users");
+        ensureCollection("user_bans");
         ensureCollection("sequences");
         ensureCollection("email_verifications");
 
@@ -42,6 +43,7 @@ public class MongoSchemaInitializer {
         dropLegacyUsernameIndex(users);
 
         ensureVerificationTtlIndex();
+        ensureBanTtlIndex();
 
         mongo.upsert(
                 Query.query(where("_id").is("users")),
@@ -50,7 +52,7 @@ public class MongoSchemaInitializer {
         );
 
         verifyExistingAccounts();
-        log.info("MongoDB account schema ready: users, admin_users, sequences, email_verifications");
+        log.info("MongoDB account schema ready: users, admin_users, user_bans, sequences, email_verifications");
     }
 
     /**
@@ -79,6 +81,13 @@ public class MongoSchemaInitializer {
                 .on("expiresAt", Sort.Direction.ASC)
                 .expire(Duration.ZERO)
                 .named("verification_expiry"));
+    }
+
+    private void ensureBanTtlIndex() {
+        mongo.indexOps(UserBan.class).createIndex(new Index()
+                .on("bannedUntil", Sort.Direction.ASC)
+                .expire(Duration.ZERO)
+                .named("user_ban_expiry"));
     }
 
     /**

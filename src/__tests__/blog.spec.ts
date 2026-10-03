@@ -12,9 +12,9 @@ const post = (id: number) => ({
   category: '技术',
   publishedAt: '2026-09-12T08:00:00Z',
 })
-const render = (embedded = false) =>
+const render = (embedded = false, searchable = false) =>
   mount(BlogFeed, {
-    props: { embedded },
+    props: { embedded, searchable },
     global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
   })
 
@@ -71,6 +71,21 @@ describe('blog preview', () => {
     expect(wrapper.findAll('.post-item')).toHaveLength(1)
     expect(wrapper.find('h1').exists()).toBe(false)
     expect(wrapper.get('#home-blog-heading').element.tagName).toBe('H2')
+  })
+
+  it('loads the searchable archive and filters by title, excerpt, or category', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ posts: [post(1), { ...post(2), category: '生活' }, post(3)] }),
+    })
+    const wrapper = render(false, true)
+    await flushPromises()
+
+    expect(new URL(fetchMock.mock.calls[0]![0]).searchParams.get('limit')).toBe('200')
+    await wrapper.get('input[type="search"]').setValue('生活')
+    expect(wrapper.findAll('.post-item')).toHaveLength(1)
+    expect(wrapper.text()).toContain('文章 2')
+    expect(wrapper.text()).not.toContain('文章 1')
   })
 
   it('prefetches a local article on reader intent and reuses it on entry', async () => {

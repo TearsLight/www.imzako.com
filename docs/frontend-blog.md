@@ -1,6 +1,6 @@
 # Markdown 博客
 
-主页 `/` 的站点导航下方展示博客，向下滚动即可浏览；`/blog` 是独立列表入口。两个位置均最多展示最近更新的 **10 篇**，不会无限追加。主页列表接近视口时加载，站内文章通过 Vue Router 进入详情，沿用全局主题和页面过渡。
+主页 `/` 的站点导航下方展示最近更新的 **10 篇**博客；`/blog` 是独立列表入口，最多加载 **200 篇**，顶部搜索框可按标题、摘要或分类即时过滤。主页列表接近视口时加载，站内文章通过 Vue Router 进入详情，沿用全局主题和页面过渡。
 
 ## 新建和修改文章
 
@@ -83,24 +83,23 @@ draft: false
 
 API 同时返回列表 `categories` 与拼接后的 `category`（用 `·` 连接）供直接展示。
 
-## 新建文章的命令
+## 通过 JAR 新建文章
 
-```powershell
-npm run blog -- -n "文章名称"
-npm run blog -- -n "文章名称" -t "技术 笔记"
-npm run blog -- -n "周记" -d notes -t "随笔"
-npm run blog -- --help
+```text
+imzako new "文章名称"
+imzako new "文章名称" --tags "技术 笔记" --publish
+imzako new "周记" --dir notes --tags "随笔"
 ```
 
-| 选项          | 说明                                          |
-| ------------- | --------------------------------------------- |
-| `-n, --name`  | 文章标题，同时用于生成文件名（必填）          |
-| `-t, --tags`  | 标签，空格分隔，写入 front matter 并计入分类  |
-| `-d, --dir`   | 放入 `blog/` 下的子目录，该子目录同样计入分类 |
-| `-f, --force` | 同名文件已存在时覆盖                          |
-| `-h, --help`  | 显示帮助                                      |
+| 选项                 | 说明                                               |
+| -------------------- | -------------------------------------------------- |
+| 第一个位置参数       | 文章标题，同时用于生成文件名（必填）               |
+| `-t, --tags`         | 标签，空格分隔，写入 front matter 并计入分类       |
+| `-d, --dir`          | 放入 `blog/` 下的子目录                            |
+| `--publish`          | 立即公开；默认创建 `draft: true` 的草稿            |
+| `--draft true/false` | 显式指定草稿状态                                   |
 
-命令写入填好 `title`、`date`、`tags` 的文件，并在末尾打印现有分类/标签作为参考。文件名规则：含拉丁字母的标题转为小写连字符形式（`Hello World` → `hello-world.md`），纯中文标题保留原名；同名时自动追加 `-2`、`-3` 等后缀，除非显式传入 `-f`。可用 `BLOG_DIRECTORY` 环境变量覆盖目标目录。
+命令在 8090 RCON 认证后执行，由 JAR 直接写入带 `title`、`date`、`tags`、`draft` 的 Markdown 文件，运行时不依赖 Node/npm。文件名规则：含拉丁字母的标题转为小写连字符形式（`Hello World` → `hello-world.md`），纯中文标题保留原名；同名时自动追加 `-2`、`-3`。可用 `BLOG_DIRECTORY` 环境变量覆盖目标目录。等级 3 用户还可以在 `/blog` 的管理面板完成新增、编辑和删除；封禁期间仍可读取管理列表，但写操作返回 403。RCON 连接与安全配置见 [RCON 管理文档](rcon.md)。
 
 ## 实时更新与重连
 
@@ -135,13 +134,23 @@ VITE_BLOG_EVENTS_URL=/api/blog/events
 
 ## 接口
 
-| 地址                                               | 内容                                                     |
-| -------------------------------------------------- | -------------------------------------------------------- |
-| `GET /api/blog/posts?limit=10`                     | `{ posts, revision }`，后端同样最多返回 10 篇            |
-| `GET /api/blog/post?slug=notes/first-post`         | `{ post, markdown, updatedAt }`，不存在返回 404          |
-| `GET /api/blog/events`                             | SSE：`sync`、`changed`、`heartbeat`，包含当前 `revision` |
-| `GET /api/blog/assets?path=notes/images/photo.png` | 目录内图片                                               |
-| `GET /blog/posts/notes/first-post`                 | Vue 文章详情入口，支持直接打开和刷新                     |
+| 地址                                               | 内容                                                               |
+| -------------------------------------------------- | ------------------------------------------------------------------ |
+| `GET /api/blog/posts?limit=10&q=Java`              | `{ posts, revision }`；`limit` 最大 200，`q` 匹配标题、摘要和分类 |
+| `GET /api/blog/post?slug=notes/first-post`         | `{ post, markdown, updatedAt }`，不存在返回 404                    |
+| `GET /api/blog/events`                             | SSE：`sync`、`changed`、`heartbeat`，包含当前 `revision`           |
+| `GET /api/blog/assets?path=notes/images/photo.png` | 目录内图片                                                         |
+| `GET /blog/posts/notes/first-post`                 | Vue 文章详情入口，支持直接打开和刷新                               |
+
+等级 3 博客管理接口：
+
+| 方法与地址                                         | 请求/响应与权限                                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| `GET /api/blog/manage/posts`                       | 返回含草稿的管理列表；需要有效会话和等级 3                          |
+| `GET /api/blog/manage/post?slug=notes/first-post`  | 返回可编辑的 front matter 与 Markdown；需要等级 3                   |
+| `POST /api/blog/manage/posts`                      | 请求体 `{ title, tags, draft, directory }`；封禁期间返回 403        |
+| `PUT /api/blog/manage/post`                        | 请求体 `{ slug, title, tags, draft, markdown }`；封禁期间返回 403   |
+| `DELETE /api/blog/manage/post?slug=...`            | 删除文章；成功返回 204，封禁期间返回 403                            |
 
 `post` 字段为 `id`、`title`、`excerpt`、`url`、`publishedAt`、`category`。为兼容已有列表结构，`publishedAt` 在文件博客中代表文件修改时间。JSON 接口使用 `Cache-Control: no-store`，避免文章更新后读到旧缓存。
 
@@ -149,9 +158,11 @@ VITE_BLOG_EVENTS_URL=/api/blog/events
 
 1. 打开 `/blog/posts/hello-markdown`，保留页面。
 2. 修改 `blog/hello-markdown.md` 的最后一句并保存，正文应自动显示新内容。
-3. 回到 `/` 下方博客区域，新建文章后应进入列表；超过 10 篇仍只显示最近更新的 10 篇。
-4. 重命名、移动或删除 `.md`，检查列表和旧文章地址。
-5. 断开网络后修改文件，再恢复网络，页面应重新同步。
+3. 回到 `/` 下方博客区域，新建文章后应进入列表；超过 10 篇时主页仍只显示最近更新的 10 篇。
+4. 打开 `/blog`，输入标题、摘要或分类关键词，确认结果即时过滤且无结果状态正确。
+5. 使用等级 3 账号新建、修改和删除一篇草稿；封禁该账号后确认写操作返回 403。
+6. 重命名、移动或删除 `.md`，检查列表和旧文章地址。
+7. 断开网络后修改文件，再恢复网络，页面应重新同步。
 
 自动验证命令：
 

@@ -21,6 +21,9 @@ export interface AuthUser {
   email?: string
   avatar?: string | null
   roles?: string[]
+  permissionLevel?: number
+  bannedUntil?: string
+  banReason?: string
 }
 
 export interface AuthResponse {
@@ -79,6 +82,12 @@ function normalizeAuthResponse(data: unknown, action: string): AuthResponse {
       roles: Array.isArray(raw.roles)
         ? raw.roles.filter((role): role is string => typeof role === 'string')
         : undefined,
+      permissionLevel:
+        typeof raw.permissionLevel === 'number' && Number.isInteger(raw.permissionLevel)
+          ? raw.permissionLevel
+          : undefined,
+      bannedUntil: typeof raw.bannedUntil === 'string' ? raw.bannedUntil : undefined,
+      banReason: typeof raw.banReason === 'string' ? raw.banReason : undefined,
     },
     verificationRequired: false,
     maskedEmail: null,

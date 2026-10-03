@@ -11,6 +11,7 @@
 - `/` 对应 `HomePage`，包含题头、个人服务入口和预留站点卡片。
 - Git 服务默认指向 `https://git.imzako.com`。
 - 博客默认指向 `http://localhost:8080/blog`，生产地址预留为 `https://www.imzako.com/blog`。
+- 邮箱默认指向 `https://mail.imzako.com`。
 - 可通过 `VITE_EXTRA_SITES_JSON` 增加其他站点，无需修改页面模板。
 - 顶部导航在所有路由共用，包含首页、Git、博客、登录状态和主题开关。
 - 未登录时显示“用户登录”入口；登录后替换为带头像的“欢迎{用户名}”按钮，点击展开菜单，可进入 `/account` 或退出登录。
@@ -40,7 +41,7 @@ https://hitokoto.cn?uuid=[uuid]
 - Spring Boot 启动时创建并扫描博客目录，新增、修改、覆盖保存、移动、重命名和删除 `.md` 文件都会自动更新索引。
 - 文件事件合并约 300ms 后通过 SSE 推送；连接中断后浏览器自动重连并执行完整同步。
 - 服务端每 15 秒发送心跳，并每 10 秒补偿扫描一次，避免遗漏文件系统事件。
-- `/` 下方与 `/blog` 共用文章列表，最多显示最近更新的 10 篇。
+- `/` 下方显示最近更新的 10 篇；独立 `/blog` 最多加载 200 篇，并可按标题、摘要或分类即时搜索。
 - `/blog/posts/{slug}` 渲染文章详情，支持子目录，例如 `blog/notes/first.md` 对应 `/blog/posts/notes/first`。
 - 支持标题、列表、引用、表格、链接、代码块和相对路径图片。
 - 本地图片支持 PNG、JPEG、GIF、WebP 和 AVIF，并限制在博客目录内读取。
@@ -73,23 +74,27 @@ draft: false
 
 front matter 是可选的，没有它时行为与之前一致。
 
-#### 新建文章的命令
+#### 通过 JAR 新建文章
 
-```powershell
-npm run blog -- -n "文章名称"
-npm run blog -- -n "文章名称" -t "技术 笔记"
-npm run blog -- -n "周记" -d notes -t "随笔"
+JAR 在 8090 提供带令牌认证的行协议 RCON。连接并执行 `auth <RCON_TOKEN>` 后，可直接运行：
+
+```text
+imzako new "文章名称"
+imzako new "并发笔记" --tags "技术 Java" --publish
+imzako new "周记" --dir notes --tags "随笔"
 ```
 
-| 选项          | 说明                                          |
-| ------------- | --------------------------------------------- |
-| `-n, --name`  | 文章标题，同时用于生成文件名（必填）          |
-| `-t, --tags`  | 标签，空格分隔，写入 front matter 并计入分类  |
-| `-d, --dir`   | 放入 `blog/` 下的子目录，该子目录同样计入分类 |
-| `-f, --force` | 同名文件已存在时覆盖                          |
-| `-h, --help`  | 显示帮助                                      |
+| 选项                 | 说明                                               |
+| -------------------- | -------------------------------------------------- |
+| 第一个位置参数       | 文章标题，同时用于生成文件名（必填）               |
+| `-t, --tags`         | 标签，空格分隔，写入 front matter 并计入分类       |
+| `-d, --dir`          | 放入 `blog/` 下的子目录                            |
+| `--publish`          | 立即进入公开列表；缺省时生成 `draft: true` 的草稿 |
+| `--draft true/false` | 显式指定草稿状态                                   |
 
-命令会写入填好 `title`、`date`（本地时间带时区偏移）和 `tags` 的 front matter，并在末尾打印现有分类/标签作为参考。文件名由标题生成：含拉丁字母时转为小写连字符形式（`Hello World` → `hello-world.md`），纯中文标题则保留原名；同名时自动追加 `-2`、`-3` 等后缀，不会静默覆盖。
+命令由 Java 直接写入 `BLOG_DIRECTORY`，运行时不需要 Node/npm。生成文件包含 `title`、`date`（`yyyy-MM-dd HH-mm`）、`tags` 和 `draft`；同名时自动追加 `-2`、`-3`，不会覆盖已有文章。等级 3 用户登录网页后，也会在 `/blog` 看到同一套新增、修改和删除界面。
+
+RCON 还提供 `op UID 1|2|3`、`ban UID 小时数 "理由"`、`pardon UID` 和 `user UID`。等级分别为普通用户、管理员、服主；封禁记录在到期前会拒绝受保护的业务写操作。协议、安全边界和完整命令见 [RCON 管理文档](docs/rcon.md)。
 
 #### 代码语法高亮
 
@@ -146,8 +151,9 @@ app.captcha.enabled=true
 - 头像以压缩后的 JPEG data URI 保存在用户文档中，服务端限制在 300000 字符以内。
 - API 和页面不会返回密码哈希、MongoDB `_id` 或数据库凭据。
 - 登录通过 HttpOnly Session Cookie 保持，名称、路径、Secure、SameSite 和有效期由 `.env` 配置。
-- `admin_users` 保存管理员 UID。UID 出现在该集合中时，下一次登录会获得 `USER` 与 `ADMIN` 角色。
-- 公开注册不会授予管理员身份，也没有公开的管理员授权接口。
+- `admin_users` 保存 UID 的权限等级：1 普通用户、2 管理员、3 服主；旧版没有 `level` 字段的记录按等级 2 兼容。
+- 权限由认证后的 RCON `op UID 等级` 修改。等级 3 会获得 `OWNER` 角色和博客管理接口，权限变更无需重新登录即可在下次请求生效。
+- `user_bans` 保存限时封禁；封禁用户仍可读取公开内容，博客管理写接口会拒绝其操作，并由 TTL 索引在到期后清理记录。后续聊天室、留言板和评论区接入时也必须复用同一写权限检查。
 
 ### 用户管理
 
@@ -167,7 +173,8 @@ MongoDB 使用业务数据库 `imzako`，启动时创建并检查：
 | 集合                  | 用途                                                |
 | --------------------- | --------------------------------------------------- |
 | `users`               | 网站用户、资料与密码哈希                            |
-| `admin_users`         | 管理员 UID 名单                                     |
+| `admin_users`         | UID 权限等级 1/2/3（保留旧集合名以兼容升级）        |
+| `user_bans`           | 用户临时封禁、到期时间与原因                        |
 | `sequences`           | UID 原子递增序列，初始值为 `1000000`                |
 | `email_verifications` | 待验证的邮箱验证码（只有哈希，到期由 TTL 索引清理） |
 
@@ -231,10 +238,10 @@ npm run dev
 | `http://localhost:5173/account`  | Vite 用户管理页面              |
 | `http://localhost:8080/`         | Spring Boot 打包后的前端与 API |
 
-新建一篇文章（无需重启任何进程，保存后自动上线）：
+新建一篇文章（连接本机 8090 RCON，认证后执行）：
 
-```powershell
-npm run blog -- -n "文章名称" -t "技术 笔记"
+```text
+imzako new "文章名称" --tags "技术 笔记" --publish
 ```
 
 Vite 将 `/api` 转发到 `BACKEND_URL`，默认是 `http://127.0.0.1:8080`。仅启动 Vite 时不会扫描 Markdown、连接 MongoDB 或提供认证接口，因此完整开发环境需要同时启动后端。
@@ -262,7 +269,7 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 | 地址                              | 结果                                      |
 | --------------------------------- | ----------------------------------------- |
 | `GET /`                           | HomePage 服务导航，下滑进入博客           |
-| `GET /blog`、`GET /blog/`         | 最近更新的最多 10 篇文章                  |
+| `GET /blog`、`GET /blog/`         | 最多 200 篇文章，并提供标题、摘要和分类搜索 |
 | `GET /blog/posts/{slug}`          | Markdown 文章详情，支持嵌套路径与直接刷新 |
 | `GET /login`、`GET /login/`       | 用户登录页面                              |
 | `GET /register`、`GET /register/` | 用户注册页面                              |
@@ -275,13 +282,18 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 
 ### 通用与博客
 
-| 接口                                               | 说明                                    |
-| -------------------------------------------------- | --------------------------------------- |
-| `GET /api/health`                                  | 返回应用存活状态                        |
-| `GET /api/blog/posts?limit=10`                     | 返回文章列表和当前 revision，最多 10 篇 |
-| `GET /api/blog/post?slug=notes/first`              | 返回文章元数据、Markdown 与更新时间     |
-| `GET /api/blog/events`                             | SSE `sync`、`changed`、`heartbeat` 事件 |
-| `GET /api/blog/assets?path=notes/images/photo.png` | 读取博客目录内允许的图片                |
+| 接口                                               | 说明                                                       |
+| -------------------------------------------------- | ---------------------------------------------------------- |
+| `GET /api/health`                                  | 返回应用存活状态                                           |
+| `GET /api/blog/posts?limit=10&q=Java`              | 返回文章列表和 revision；`q` 可按标题、摘要和分类筛选      |
+| `GET /api/blog/post?slug=notes/first`              | 返回文章元数据、Markdown 与更新时间                        |
+| `GET /api/blog/events`                             | SSE `sync`、`changed`、`heartbeat` 事件                    |
+| `GET /api/blog/assets?path=notes/images/photo.png` | 读取博客目录内允许的图片                                   |
+| `GET /api/blog/manage/posts`                       | 等级 3 读取含草稿的管理列表                                |
+| `GET /api/blog/manage/post?slug=notes/first`       | 等级 3 读取待编辑的 front matter 与 Markdown               |
+| `POST /api/blog/manage/posts`                      | 等级 3 新建文章；封禁期间返回 403                          |
+| `PUT /api/blog/manage/post`                        | 等级 3 修改文章；封禁期间返回 403                          |
+| `DELETE /api/blog/manage/post?slug=notes/first`    | 等级 3 删除文章；封禁期间返回 403                          |
 
 ### 账号
 
@@ -304,7 +316,15 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 
 ```json
 {
-  "user": { "id": 1000001, "username": "member", "email": "member@example.com", "roles": ["USER"] },
+  "user": {
+    "id": 1000001,
+    "username": "member",
+    "email": "member@example.com",
+    "roles": ["USER"],
+    "permissionLevel": 1,
+    "bannedUntil": null,
+    "banReason": null
+  },
   "verificationRequired": false,
   "maskedEmail": null
 }
@@ -341,6 +361,7 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
 | 应用与域名    | `APP_NAME`、`APP_ENV`、`PUBLIC_DOMAIN`、`PUBLIC_URL`、`GIT_DOMAIN`、`BLOG_PUBLIC_URL`                                                                                                                                                                                                                                                                                                                                                     | 服务端与部署环境信息                                          |
 | 本地端口      | `BACKEND_URL`、`FRONTEND_DEV_URL`、`SERVER_PORT`、`TRUST_PROXY`                                                                                                                                                                                                                                                                                                                                                                           | 后端端口与 Vite API 代理                                      |
+| RCON           | `RCON_ENABLED`、`RCON_HOST`、`RCON_PORT`、`RCON_TOKEN`                                                                                                                                                                                                                                                                                                                                                                                     | 8090 管理端口、监听地址与认证令牌                             |
 | Cookie 与会话 | `COOKIE_NAME`、`COOKIE_DOMAIN`、`COOKIE_PATH`、`COOKIE_HTTP_ONLY`、`COOKIE_SECURE`、`COOKIE_SAME_SITE`、`COOKIE_SECRET`、`SESSION_TTL_SECONDS`                                                                                                                                                                                                                                                                                            | 登录会话；当前直接使用除 Domain 与 Secret 外的 Cookie 配置    |
 | Token         | `TOKEN_ISSUER`、`ACCESS_TOKEN_TTL_SECONDS`、`REFRESH_TOKEN_TTL_SECONDS`、`EMAIL_VERIFICATION_TOKEN_TTL_SECONDS`、`PASSWORD_RESET_TOKEN_TTL_SECONDS`、`TOKEN_SECRET`                                                                                                                                                                                                                                                                       | 为后续 Token、邮箱验证与密码重置预留                          |
 | MongoDB       | `MONGODB_URI`、`MONGODB_DATABASE`、`MONGODB_USERNAME`、`MONGODB_PASSWORD`、`MONGODB_AUTH_SOURCE`、`MONGODB_CONNECT_TIMEOUT_MS`、`MONGODB_SOCKET_TIMEOUT_MS`                                                                                                                                                                                                                                                                               | 用户、管理员与 UID 序列；后端当前使用 `MONGODB_URI`           |
@@ -349,7 +370,7 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 | SMTP          | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_TLS`、`SMTP_AUTH`、`SMTP_CONNECTION_TIMEOUT_MS`、`SMTP_TIMEOUT_MS`、`SENDER`、`SENDER_NAME`                                                                                                                                                                                                                                                                                     | 本地回退，映射到 `spring.mail.*` 与 `app.mail.*` |
 | BillionMail   | `MAIL_TRANSPORT`、`BILLIONMAIL_API_URL`、`BILLIONMAIL_API_KEY`、`BILLIONMAIL_TIMEOUT_MS` | 生产邮件发送 API，发件人 `noreply@imzako.com` |        |
 | 账号门禁      | `app.email-verification.enabled`、`app.captcha.enabled`、`EMAIL_VERIFICATION_TTL_SECONDS`、`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`、`EMAIL_VERIFICATION_MAX_SENDS_PER_HOUR`、`LOGIN_CAPTCHA_THRESHOLD`、`LOGIN_FAILURE_WINDOW_SECONDS`、`LOGIN_FAILURE_MAX_TRACKED_KEYS`、`REGISTRATION_MAX_REQUESTS_PER_HOUR`、`VERIFICATION_RESEND_MAX_REQUESTS_PER_HOUR`、`CAPTCHA_MAX_REQUESTS_PER_MINUTE`、`PUBLIC_RATE_LIMIT_MAX_TRACKED_KEYS` | 邮箱验证、图形验证码和公开接口限流                            |
-| 前端站点      | `VITE_SITE_NAME`、`VITE_PUBLIC_DOMAIN`、`VITE_GIT_URL`、`VITE_BLOG_URL`、`VITE_EXTRA_SITES_JSON`                                                                                                                                                                                                                                                                                                                                          | 品牌、域名和服务导航                                          |
+| 前端站点      | `VITE_SITE_NAME`、`VITE_PUBLIC_DOMAIN`、`VITE_GIT_URL`、`VITE_BLOG_URL`、`VITE_MAIL_URL`、`VITE_EXTRA_SITES_JSON`                                                                                                                                                                                                                                                                                                                                          | 品牌、域名和服务导航                                          |
 | 前端接口      | `VITE_LOGIN_ENDPOINT`、`VITE_REGISTER_ENDPOINT`、`VITE_HITOKOTO_API_URL`                                                                                                                                                                                                                                                                                                                                                                  | 登录、注册与一言接口地址                                      |
 | 博客          | `BLOG_DIRECTORY`、`VITE_BLOG_API_URL`、`VITE_BLOG_POST_URL`、`VITE_BLOG_EVENTS_URL`                                                                                                                                                                                                                                                                                                                                                       | Markdown 目录、列表、正文与实时通知                           |
 
@@ -379,8 +400,8 @@ Maven 在 `generate-resources` 阶段执行 `npm run build`，其中包含 TypeS
 
 最近一次验证结果：
 
-- **72 项前端测试通过**（9 个测试文件），覆盖登录、注册（含验证码步骤与图形验证码）、新邮箱改绑验证、用户管理与顶部菜单。
-- **65 项 Java 测试通过**，另有 1 项真实 SMTP 探测默认跳过；覆盖 front matter 与草稿过滤、图形验证码、登录计数上限、公开注册限流、邮箱改绑和会话版本。
+- **74 项前端测试通过**，覆盖登录、注册、账号管理、博客搜索与等级 3 管理界面。
+- **75 项 Java 测试通过**，另有 1 项真实 SMTP 探测默认跳过；覆盖 front matter、博客文件管理、RCON、权限封禁、验证码、限流和会话版本。
 - Markdown 文件新增、修改、替换保存、重命名、删除和 SSE 重连均使用真实临时文件与 HTTP 连接测试。
 - front matter 的标题、日期、标签、缺省回退与「不泄漏进正文/摘要」均有测试覆盖。
 - 密码哈希、UID 分配、普通用户与管理员角色判定包含独立测试。
@@ -402,7 +423,7 @@ Maven 在 `generate-resources` 阶段执行 `npm run build`，其中包含 TypeS
 java -jar target\imzako-0.0.1-SNAPSHOT.jar
 ```
 
-运行 JAR 只需要 JDK 21，不需要 Node、Vite 或外部 Tomcat。生产环境由 1Panel 的 Docker 容器 `imzako` 运行（见下文「部署时需要」）。
+`mvn verify` 会先构建并测试 Vue 前端，再把静态产物嵌入 Spring Boot JAR。运行目录只需要该 JAR、同目录 `.env` 和 JDK 21，不需要 Node、Vite 或外部 Tomcat。首次新增博客时会自动创建 `BLOG_DIRECTORY`（默认 `blog/`）。生产环境可由 1Panel 的 Java 21 Docker 容器运行，具体配置见 [上线清单](docs/deployment.md)。
 
 部署时需要：
 
@@ -412,6 +433,7 @@ java -jar target\imzako-0.0.1-SNAPSHOT.jar
 4. 为 `/api/blog/events` 关闭反向代理缓冲，并让读取超时大于 15 秒。
 5. 保证应用可以连接 MongoDB；生产环境建议使用权限受限的专用数据库账号。
 6. 部署到公网并持续开放注册时，将 `app.email-verification.enabled` 与 `app.captcha.enabled` 设为 `true`，并确认邮件发送可用（生产使用 BillionMail 发送 API，见下文）；两项功能已实现，只是默认关闭。
+7. 在 `.env` 设置足够长的随机 `RCON_TOKEN`。直接运行 JAR 时默认只监听 `127.0.0.1:8090`；Docker 发布端口时让容器内监听 `0.0.0.0`，但宿主端仍绑定 `127.0.0.1:8090`，远程管理通过 SSH 隧道进入。
 
 Markdown 文件是运行时内容，不会打包到 JAR。保存文章即可发布，无需重新构建应用。
 
@@ -428,7 +450,7 @@ systemctl start www-imzako-sync.service
 /opt/1panel/www/java/www.imzako.com/scripts/sync-main.sh --force
 ```
 
-生产 `.env` 与 Markdown 内容不进入 Git。服务器把 `BLOG_DIRECTORY` 指向工作区外的持久化目录，因此同步 `main` 不会覆盖线上文章；`npm run blog -- -n "文章名称"` 会先从 `.env` 读取这个目录。
+生产 `.env` 与 Markdown 内容不进入 Git。服务器把 `BLOG_DIRECTORY` 指向工作区外的持久化目录，因此同步 `main` 不会覆盖线上文章；文章由 JAR 内置的 RCON 或等级 3 网页管理接口写入该目录。
 
 ## 项目结构
 
@@ -436,7 +458,8 @@ systemctl start www-imzako-sync.service
 blog/                                  Markdown 文章与本地图片
 docs/frontend-auth.md                  用户、MongoDB、管理员与用户管理说明
 docs/frontend-blog.md                  Markdown 博客、front matter 与实时更新说明
-scripts/new-post.mjs                   新建文章的博客命令
+docs/rcon.md                           8090 RCON 协议、命令与安全部署说明
+src/main/java/com/imzako/rcon/         8090 RCON 服务与管理命令
 scripts/sync-main.sh                   定时同步、验证并部署 origin/main
 deploy/                                systemd 同步服务与定时器
 src/components/                        博客列表、主题开关、一言页脚等组件
