@@ -72,7 +72,7 @@ Spring Boot 4 通过 `spring.mongodb.uri` 使用该连接。`authSource=admin` �
 - `password`：8–128 字符，服务端不会去除首尾字符。
 - `avatar`：可选，`data:image/...` 形式的图片数据 URI，最长 300000 字符。
 
-行为取决于开关 `app.email-verification.enabled`（本地默认 false，**生产已设为 true**）：
+行为取决于开关 `EMAIL_VERIFICATION_ENABLED`（本地默认 false，**生产已设为 true**）：
 
 | 开关    | 响应                                                                                 | 会话           |
 | ------- | ------------------------------------------------------------------------------------ | -------------- |
@@ -148,7 +148,7 @@ Spring Boot 4 通过 `spring.mongodb.uri` 使用该连接。`authSource=admin` �
 - 失败计数默认最多保留 10000 个键（`LOGIN_FAILURE_MAX_TRACKED_KEYS`），图形验证码也有 10000 条上限，避免未受信输入无限占用内存。
 - 登录成功会清零两个计数桶。
 - 验证码 5 分钟有效、一次性使用；答错返回 `400 INVALID_CAPTCHA`，且该次失败同样计数。
-- 开关 `app.captcha.enabled`（**当前为 false**）关闭时完全不校验，`GET /api/auth/captcha` 仍可访问。
+- 开关 `CAPTCHA_ENABLED`（**当前为 false**）关闭时完全不校验，`GET /api/auth/captcha` 仍可访问。
 
 ## 用户管理
 

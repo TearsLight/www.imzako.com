@@ -11,9 +11,9 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import java.time.Duration;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
@@ -34,7 +34,7 @@ class MailServiceTest {
                 "https://www.imzako.com",
                 Duration.ofSeconds(10));
         mail = new MailService(
-                mock(JavaMailSender.class),
+                mock(ObjectProvider.class),
                 properties,
                 builder.build(),
                 new VerificationMailTemplate());

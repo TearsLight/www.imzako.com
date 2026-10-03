@@ -5,6 +5,7 @@ import java.io.UnsupportedEncodingException;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -17,13 +18,13 @@ public class MailService {
     private static final Logger log = LoggerFactory.getLogger(MailService.class);
     private static final String SEND_PATH = "/api/batch_mail/api/send";
 
-    private final JavaMailSender smtp;
+    private final ObjectProvider<JavaMailSender> smtp;
     private final MailProperties properties;
     private final RestClient billionMail;
     private final VerificationMailTemplate template;
 
     public MailService(
-            JavaMailSender smtp,
+            ObjectProvider<JavaMailSender> smtp,
             MailProperties properties,
             RestClient billionMailRestClient,
             VerificationMailTemplate template) {
@@ -87,7 +88,11 @@ public class MailService {
 
     private void sendWithSmtp(String recipient, String username, String code, long minutes)
             throws MessagingException, UnsupportedEncodingException {
-        var message = smtp.createMimeMessage();
+        JavaMailSender sender = smtp.getIfAvailable();
+        if (sender == null) {
+            throw new MailDeliveryException("SMTP 未配置", null);
+        }
+        var message = sender.createMimeMessage();
         var helper = new MimeMessageHelper(message, true, "UTF-8");
         helper.setFrom(properties.sender(), properties.senderName());
         helper.setTo(recipient);
@@ -95,7 +100,7 @@ public class MailService {
         helper.setText(
                 template.renderPlainText(username, code, minutes, properties.senderName()),
                 template.renderHtml(username, code, minutes, properties.siteUrl()));
-        smtp.send(message);
+        sender.send(message);
     }
 
     record BillionMailSendRequest(String addresser, String recipient, Map<String, String> attribs) {}

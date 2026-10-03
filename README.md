@@ -114,7 +114,7 @@ console.log(message)
 注册邮箱验证的完整链路已经实现，但**默认关闭**，因此注册后会直接登录，不会发送验证码。通过 `.env` 打开：
 
 ```dotenv
-app.email-verification.enabled=true
+EMAIL_VERIFICATION_ENABLED=true
 ```
 
 打开后行为如下：
@@ -127,14 +127,14 @@ app.email-verification.enabled=true
 - 存量账号（无 `emailVerified` 字段）在启动时会被标记为已验证，避免升级后失联。
 - 非 `production` 环境下，验证码会同时写入服务端日志，便于本地联调。
 
-生产环境通过 BillionMail 发送 API 投递邮件（`MAIL_TRANSPORT=billionmail`，发件人 `noreply@imzako.com`），SMTP 作为本地回退保留。`.env` 里的 `SMTP_*`、`SENDER`、`SENDER_NAME` 会被映射到 Spring 的 `spring.mail.*` 与 `app.mail.*`。
+生产环境通过 BillionMail 发送 API 投递邮件（`MAIL_TRANSPORT=billionmail`，发件人 `noreply@imzako.com`）。`.env` 只配置 BillionMail 的 `BILLIONMAIL_API_URL`、`BILLIONMAIL_API_KEY`；SMTP 仅作可选本地回退，需要时再自行配置 `SMTP_*`。
 
 ### 登录图形验证码（当前关闭）
 
 连续登录失败后强制图形验证码的功能也已实现，同样**默认关闭**：
 
 ```dotenv
-app.captcha.enabled=true
+CAPTCHA_ENABLED=true
 ```
 
 打开后：同一邮箱或同一来源地址在窗口期内累计失败达到阈值（默认 3 次，可用 `LOGIN_CAPTCHA_THRESHOLD`、`LOGIN_FAILURE_WINDOW_SECONDS` 调整）时，后续登录先返回 `428 CAPTCHA_REQUIRED`；前端调用 `GET /api/auth/captcha` 取回验证码图片，并把响应头 `X-Captcha-Id` 与用户输入一并提交。验证码由服务端用 JDK 图像 API 生成，4 位字符，只存于服务端内存，5 分钟有效且一次性使用，答错返回 `400 INVALID_CAPTCHA`。登录成功会清零计数。失败计数和验证码记录都有最大数量限制，攻击者无法通过持续更换标识无限占用内存。
@@ -353,7 +353,7 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 
 ## `.env` 配置
 
-根目录 `.env` 集中保存项目运行配置，并已被 Git 忽略。Spring Boot 通过 `spring.config.import` 读取该文件；Vite 读取 `BACKEND_URL`，并只向浏览器暴露 `VITE_` 前缀的变量。
+根目录 `.env` 集中保存项目运行配置，并已被 Git 忽略；仓库提供已脱敏的 `.env.example` 模板，首次部署复制为 `.env` 并填入真实密钥。Spring Boot 通过 `spring.config.import` 读取该文件；Vite 读取 `BACKEND_URL`，并只向浏览器暴露 `VITE_` 前缀的变量。
 
 不要把 `.env`、数据库密码、Cookie 密钥、Token 密钥或 SMTP 密码提交到版本库。
 
@@ -367,9 +367,9 @@ macOS 和 Linux 使用 `./mvnw` 替代 `.\mvnw.cmd`，必要时先执行 `chmod 
 | MongoDB       | `MONGODB_URI`、`MONGODB_DATABASE`、`MONGODB_USERNAME`、`MONGODB_PASSWORD`、`MONGODB_AUTH_SOURCE`、`MONGODB_CONNECT_TIMEOUT_MS`、`MONGODB_SOCKET_TIMEOUT_MS`                                                                                                                                                                                                                                                                               | 用户、管理员与 UID 序列；后端当前使用 `MONGODB_URI`           |
 | 跨域          | `ALLOWED_ORIGINS`、`ALLOWED_METHODS`、`ALLOWED_HEADERS`、`ALLOW_CREDENTIALS`                                                                                                                                                                                                                                                                                                                                                              | 当前启用允许来源与携带凭据；方法和请求头采用后端安全白名单    |
 | 安全预留      | `CSRF_ENABLED`、`PASSWORD_MIN_LENGTH`、`BCRYPT_COST`、`LOGIN_MAX_ATTEMPTS`、`LOGIN_LOCK_SECONDS`、`RATE_LIMIT_ENABLED`、`RATE_LIMIT_WINDOW_SECONDS`、`RATE_LIMIT_MAX_REQUESTS`                                                                                                                                                                                                                                                            | 后续 CSRF、密码策略、登录锁定和限流扩展；尚未全部接入运行逻辑 |
-| SMTP          | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_TLS`、`SMTP_AUTH`、`SMTP_CONNECTION_TIMEOUT_MS`、`SMTP_TIMEOUT_MS`、`SENDER`、`SENDER_NAME`                                                                                                                                                                                                                                                                                     | 本地回退，映射到 `spring.mail.*` 与 `app.mail.*` |
+| SMTP          | `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASS`、`SMTP_TLS`、`SMTP_AUTH`、`SMTP_CONNECTION_TIMEOUT_MS`、`SMTP_TIMEOUT_MS`、`SENDER`、`SENDER_NAME`                                                                                                                                                                                                                                                                                     | 可选本地回退（需自行配置），映射到 `spring.mail.*` 与 `app.mail.*` |
 | BillionMail   | `MAIL_TRANSPORT`、`BILLIONMAIL_API_URL`、`BILLIONMAIL_API_KEY`、`BILLIONMAIL_TIMEOUT_MS` | 生产邮件发送 API，发件人 `noreply@imzako.com` |        |
-| 账号门禁      | `app.email-verification.enabled`、`app.captcha.enabled`、`EMAIL_VERIFICATION_TTL_SECONDS`、`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`、`EMAIL_VERIFICATION_MAX_SENDS_PER_HOUR`、`LOGIN_CAPTCHA_THRESHOLD`、`LOGIN_FAILURE_WINDOW_SECONDS`、`LOGIN_FAILURE_MAX_TRACKED_KEYS`、`REGISTRATION_MAX_REQUESTS_PER_HOUR`、`VERIFICATION_RESEND_MAX_REQUESTS_PER_HOUR`、`CAPTCHA_MAX_REQUESTS_PER_MINUTE`、`PUBLIC_RATE_LIMIT_MAX_TRACKED_KEYS` | 邮箱验证、图形验证码和公开接口限流                            |
+| 账号门禁      | `EMAIL_VERIFICATION_ENABLED`、`CAPTCHA_ENABLED`、`EMAIL_VERIFICATION_TTL_SECONDS`、`EMAIL_VERIFICATION_RESEND_COOLDOWN_SECONDS`、`EMAIL_VERIFICATION_MAX_SENDS_PER_HOUR`、`LOGIN_CAPTCHA_THRESHOLD`、`LOGIN_FAILURE_WINDOW_SECONDS`、`LOGIN_FAILURE_MAX_TRACKED_KEYS`、`REGISTRATION_MAX_REQUESTS_PER_HOUR`、`VERIFICATION_RESEND_MAX_REQUESTS_PER_HOUR`、`CAPTCHA_MAX_REQUESTS_PER_MINUTE`、`PUBLIC_RATE_LIMIT_MAX_TRACKED_KEYS` | 邮箱验证、图形验证码和公开接口限流                            |
 | 前端站点      | `VITE_SITE_NAME`、`VITE_PUBLIC_DOMAIN`、`VITE_GIT_URL`、`VITE_BLOG_URL`、`VITE_MAIL_URL`、`VITE_EXTRA_SITES_JSON`                                                                                                                                                                                                                                                                                                                                          | 品牌、域名和服务导航                                          |
 | 前端接口      | `VITE_LOGIN_ENDPOINT`、`VITE_REGISTER_ENDPOINT`、`VITE_HITOKOTO_API_URL`                                                                                                                                                                                                                                                                                                                                                                  | 登录、注册与一言接口地址                                      |
 | 博客          | `BLOG_DIRECTORY`、`VITE_BLOG_API_URL`、`VITE_BLOG_POST_URL`、`VITE_BLOG_EVENTS_URL`                                                                                                                                                                                                                                                                                                                                                       | Markdown 目录、列表、正文与实时通知                           |
@@ -432,7 +432,7 @@ java -jar target\imzako-0.0.1-SNAPSHOT.jar
 3. 将 `COOKIE_SECURE` 设置为 `true`，并使用 HTTPS。
 4. 为 `/api/blog/events` 关闭反向代理缓冲，并让读取超时大于 15 秒。
 5. 保证应用可以连接 MongoDB；生产环境建议使用权限受限的专用数据库账号。
-6. 部署到公网并持续开放注册时，将 `app.email-verification.enabled` 与 `app.captcha.enabled` 设为 `true`，并确认邮件发送可用（生产使用 BillionMail 发送 API，见下文）；两项功能已实现，只是默认关闭。
+6. 部署到公网并持续开放注册时，将 `EMAIL_VERIFICATION_ENABLED` 与 `CAPTCHA_ENABLED` 设为 `true`，并确认邮件发送可用（生产使用 BillionMail 发送 API，见下文）；两项功能已实现，只是默认关闭。
 7. 在 `.env` 设置足够长的随机 `RCON_TOKEN`。直接运行 JAR 时默认只监听 `127.0.0.1:8090`；Docker 发布端口时让容器内监听 `0.0.0.0`，但宿主端仍绑定 `127.0.0.1:8090`，远程管理通过 SSH 隧道进入。
 
 Markdown 文件是运行时内容，不会打包到 JAR。保存文章即可发布，无需重新构建应用。
